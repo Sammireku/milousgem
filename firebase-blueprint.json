@@ -1,0 +1,55 @@
+{
+  "entities": {
+    "UserProfile": {
+      "collection": "users",
+      "fields": {
+        "id": { "type": "string", "description": "User UID" },
+        "name": { "type": "string", "description": "Display name" },
+        "email": { "type": "string", "description": "User email address" },
+        "avatar": { "type": "string", "description": "Profile picture URL" },
+        "bio": { "type": "string", "description": "Storyteller bio" },
+        "createdAt": { "type": "number", "description": "Creation timestamp" },
+        "updatedAt": { "type": "number", "description": "Last update timestamp" }
+      }
+    },
+    "Character": {
+      "collection": "users/{userId}/characters",
+      "fields": {
+        "id": { "type": "string", "description": "Character ID" },
+        "userId": { "type": "string", "description": "Creator user UID" },
+        "name": { "type": "string", "description": "Character name" },
+        "titleOrRole": { "type": "string", "description": "Evocative title or moniker" },
+        "role": { "type": "string", "description": "Narrative role" },
+        "avatar": { "type": "string", "description": "Portrait image URL" },
+        "speciesOrArchetype": { "type": "string", "description": "Archetype / species" },
+        "appearanceTags": { "type": "array", "description": "Visual attributes" },
+        "backstory": { "type": "string", "description": "Character origin" },
+        "personality": { "type": "array", "description": "Personality traits" },
+        "flawOrSecret": { "type": "string", "description": "Flaw or narrative secret" },
+        "signatureItem": { "type": "string", "description": "Signature item" },
+        "speechPattern": { "type": "string", "description": "Voice pattern" },
+        "createdAt": { "type": "number", "description": "Creation timestamp" }
+      }
+    },
+    "StoryBook": {
+      "collection": "users/{userId}/stories",
+      "fields": {
+        "id": { "type": "string", "description": "Story ID" },
+        "userId": { "type": "string", "description": "Creator user UID" },
+        "title": { "type": "string", "description": "Storybook title" },
+        "genre": { "type": "string", "description": "Story genre" },
+        "artStyle": { "type": "string", "description": "Illustration art style" },
+        "tone": { "type": "string", "description": "Narrative tone" },
+        "synopsis": { "type": "string", "description": "Overview synopsis" },
+        "cast": { "type": "array", "description": "Selected cast characters" },
+        "targetChapters": { "type": "number", "description": "Total chapter count" },
+        "currentChapterIndex": { "type": "number", "description": "Active chapter index" },
+        "chapters": { "type": "array", "description": "Generated chapter list" },
+        "plotMemory": { "type": "object", "description": "Inventory, clues, and character tensions" },
+        "isCompleted": { "type": "boolean", "description": "Whether chronicle is concluded" },
+        "createdAt": { "type": "number", "description": "Creation timestamp" },
+        "updatedAt": { "type": "number", "description": "Last update timestamp" }
+      }
+    }
+  }
+}

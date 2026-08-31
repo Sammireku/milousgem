@@ -1,0 +1,7 @@
+{
+  "name": "MilousGem",
+  "description": "A character-based story generation book with anti-repetitive narrative arcs, context-aware visual generation, camera/photo character creation, and personal library management.",
+  "requestFramePermissions": ["camera", "microphone"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
+
