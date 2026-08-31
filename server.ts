@@ -485,13 +485,16 @@ app.post('/api/character/analyze-image', async (req, res) => {
     const cleanBase64 = imageBase64.replace(/^data:image\/[a-zA-Z+]+;base64,/, '');
 
     const prompt = `You are a master character designer and novelist for MilousGem, an award-winning character-driven storytelling system.
-Analyze this person or subject image and create an extraordinary, three-dimensional storybook character profile.
+Analyze this photo to identify one or more people.
+For EACH person, create an extraordinary, 3D animated Pixar-style children's book character profile. 
+Maintain their key features like hair color, hairstyle, and face shape, but transform them into a 3D animated Pixar-style character. Show them in soft magical lighting.
+
 Avoid flat clichés. Give them distinctive physical traits visible or inspired by the image, rich psychological depth, a unique voice quirk, a burning internal flaw or secret that drives narrative tension, and a signature item.
 
-${suggestedName ? `Preferred Name/Alias: ${suggestedName}` : ''}
+${suggestedName ? `Preferred Name/Alias (if multiple, map accordingly): ${suggestedName}` : ''}
 ${preferredGenre ? `Preferred Narrative Genre Affinity: ${preferredGenre}` : ''}
 
-Generate structured JSON matching the requested schema.`;
+Generate a JSON object where 'characters' is an array of character objects matching the requested schema.`;
 
     try {
       const ai = getGeminiClient();
@@ -573,7 +576,7 @@ Generate structured JSON matching the requested schema.`;
       });
 
       const parsed = extractJSON(response.text || '{}');
-      return res.json({ success: true, character: parsed, provider: 'gemini' });
+      return res.json({ success: true, characters: parsed.characters, provider: 'gemini' });
     } catch (geminiErr: any) {
       console.warn('Gemini vision analysis note, trying fallback text analysis:', geminiErr?.message);
       // Fallback to Groq if key is present
@@ -584,7 +587,7 @@ Generate structured JSON matching the requested schema.`;
             { role: 'user', content: `${prompt}\nCreate a character profile for ${suggestedName || 'a mysterious hero'} in ${preferredGenre || 'fantasy'}. Format as valid JSON with name, titleOrRole, role, speciesOrArchetype, appearanceTags, artisticStylePrompt, keyColors, backstory, personality, flawOrSecret, signatureItem, speechPattern, genreAffinities.` },
           ], true);
           const parsed = extractJSON(groqText);
-          return res.json({ success: true, character: parsed, provider: 'groq-fallback' });
+          return res.json({ success: true, characters: parsed.characters, provider: 'groq-fallback' });
         } catch (groqErr) {
           console.warn('Groq character analysis fallback failed, creating procedural character:', groqErr);
         }
@@ -606,7 +609,7 @@ Generate structured JSON matching the requested schema.`;
         speechPattern: 'Eloquent, precise, often referencing cosmic horizons and historical paradoxes',
         genreAffinities: ['fantasy', 'steampunk', 'solarpunk', 'cosmic_horror'],
       };
-      return res.json({ success: true, character: fallbackChar, provider: 'procedural-fallback' });
+      return res.json({ success: true, characters: [fallbackChar], provider: 'procedural-fallback' });
     }
   } catch (error: any) {
     console.error('Error in /api/character/analyze-image:', error);

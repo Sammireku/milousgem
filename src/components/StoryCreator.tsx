@@ -79,7 +79,7 @@ export const StoryCreator: React.FC<StoryCreatorProps> = ({
       setSelectedArtStyle('children_picturebook');
       setTone('whimsical');
       setMoralLesson(KIDS_MORAL_THEMES[0].id);
-      setTargetChapters(3);
+      setTargetChapters(8); // Capped at 8 for kids
       setEntropyLevel(0.65);
     } else {
       setTargetAudience('all_ages');
@@ -162,11 +162,6 @@ export const StoryCreator: React.FC<StoryCreatorProps> = ({
   };
 
   const handleCreateAndWeave = async () => {
-    if (selectedCast.length === 0) {
-      setErrorMsg('Please select at least 1 character for the cast');
-      return;
-    }
-
     const finalTitle = title.trim() || `The Chronicle of ${selectedCast[0]?.name || 'Destiny'}`;
     const finalSynopsis = synopsis.trim() || `${GENRE_PRESETS.find((g) => g.id === selectedGenre)?.samplePromptSeed}`;
 

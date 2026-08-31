@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
 import {
   BookOpen,
   Volume2,
@@ -108,6 +109,21 @@ export const StoryReader: React.FC<StoryReaderProps> = ({
   const [showExportMenu, setShowExportMenu] = useState(false);
   const [exportLoading, setExportLoading] = useState<'pdf' | 'epub' | 'txt' | 'share' | null>(null);
   const [shareFeedback, setShareFeedback] = useState<string | null>(null);
+
+  // Bookmark: Sync page index with readingSettings
+  useEffect(() => {
+    const savedPage = readingSettings.bookmarks[book.id];
+    if (savedPage !== undefined && savedPage !== currentChapterIndex) {
+      onUpdateBook({ ...book, currentChapterIndex: savedPage });
+    }
+  }, [book.id, readingSettings.bookmarks]);
+
+  useEffect(() => {
+    onUpdateSettings({
+      ...readingSettings,
+      bookmarks: { ...readingSettings.bookmarks, [book.id]: currentChapterIndex },
+    });
+  }, [currentChapterIndex]);
 
   const themeStyle = THEME_STYLES[readingSettings.theme] || THEME_STYLES.natural_tones;
 
@@ -541,9 +557,9 @@ export const StoryReader: React.FC<StoryReaderProps> = ({
       {showSettingsDrawer && (
         <div className="max-w-4xl mx-auto px-4 sm:px-6 pt-4 animate-fade-in">
           <div className="p-5 rounded-2xl bg-white border border-[#DFD8CA] shadow-xl grid grid-cols-1 sm:grid-cols-3 gap-5 text-xs text-[#4A443F]">
-            {/* Theme Picker */}
+            {/* Palette & Theme Picker */}
             <div className="space-y-2">
-              <label className="font-semibold text-[#6E665E]">Reading Theme</label>
+              <label className="font-semibold text-[#6E665E]">Aesthetics</label>
               <div className="grid grid-cols-2 gap-1.5">
                 {[
                   { id: 'natural_tones', label: 'Natural Tones' },
@@ -564,6 +580,18 @@ export const StoryReader: React.FC<StoryReaderProps> = ({
                     {t.label}
                   </button>
                 ))}
+              </div>
+              <div className="pt-2">
+                <label className="text-xs font-semibold text-[#6E665E]">Palette</label>
+                <div className="flex gap-2 mt-1">
+                  {(['classic_paper', 'midnight_galaxy', 'forest_dream'] as const).map(p => (
+                    <button key={p}
+                      onClick={() => onUpdateSettings({...readingSettings, colorPalette: p})}
+                      className={`flex-1 py-1 text-xs rounded border ${readingSettings.colorPalette === p ? 'border-[#5B6B56] bg-[#5B6B56] text-white' : 'border-[#DFD8CA] bg-white'}`}>
+                      {p.replace('_', ' ')}
+                    </button>
+                  ))}
+                </div>
               </div>
             </div>
 
@@ -748,7 +776,13 @@ export const StoryReader: React.FC<StoryReaderProps> = ({
 
         {/* Context-Aware Scene Illustration Card */}
         {currentChapter.imageUrl && (
-          <div className="relative rounded-3xl overflow-hidden border border-[#DFD8CA] shadow-lg group">
+          <motion.div
+            key={`img-${currentChapterIndex}`}
+            initial={{ opacity: 0, rotateY: 90 }}
+            animate={{ opacity: 1, rotateY: 0 }}
+            transition={{ duration: 0.6, type: 'spring' }}
+            className="relative rounded-3xl overflow-hidden border border-[#DFD8CA] shadow-lg group"
+          >
             <div className="relative aspect-[16/9] w-full bg-[#EAE5DC]">
               <img
                 src={currentChapter.imageUrl}
@@ -790,11 +824,15 @@ export const StoryReader: React.FC<StoryReaderProps> = ({
                 </span>
               </div>
             </div>
-          </div>
+          </motion.div>
         )}
 
         {/* Story Prose Text Block */}
-        <article
+        <motion.article
+          key={`text-${currentChapterIndex}`}
+          initial={{ opacity: 0, rotateY: -90 }}
+          animate={{ opacity: 1, rotateY: 0 }}
+          transition={{ duration: 0.6, type: 'spring' }}
           className={`p-6 sm:p-10 rounded-3xl ${themeStyle.proseBg} border ${themeStyle.border} shadow-sm space-y-6 ${fontClass}`}
         >
           {currentChapter.content.split('\n\n').map((paragraph, pIdx) => {
@@ -817,7 +855,7 @@ export const StoryReader: React.FC<StoryReaderProps> = ({
               </p>
             );
           })}
-        </article>
+        </motion.article>
 
         {/* Interactive Non-Repetitive Choice Selector / Branching */}
         {currentChapterIndex === book.chapters.length - 1 && !book.isCompleted && (

@@ -14,9 +14,11 @@ export interface ReadingSettings {
   fontSize: 'sm' | 'md' | 'lg' | 'xl';
   fontFamily: 'serif' | 'display' | 'sans' | 'crimson';
   theme: 'natural_tones' | 'parchment' | 'forest_sage' | 'warm_terracotta' | 'slate_stone';
+  colorPalette: 'classic_paper' | 'midnight_galaxy' | 'forest_dream';
   ambientSound: boolean;
   autoNarration: boolean;
   speechRate: number; // 0.8 to 1.3
+  bookmarks: Record<string, number>;
 }
 
 export const DEFAULT_USER: UserAccount = {
@@ -34,9 +36,11 @@ export const DEFAULT_READING_SETTINGS: ReadingSettings = {
   fontSize: 'lg',
   fontFamily: 'crimson',
   theme: 'natural_tones',
+  colorPalette: 'classic_paper',
   ambientSound: false,
   autoNarration: false,
   speechRate: 1.0,
+  bookmarks: {},
 };
 
 export function loadCurrentUser(): UserAccount {
