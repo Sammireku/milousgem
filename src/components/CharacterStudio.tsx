@@ -34,28 +34,28 @@ interface CharacterStudioProps {
 
 const SAMPLE_PORTRAIT_PRESETS = [
   {
-    name: 'Maya',
+    name: 'Zula',
     role: 'protagonist' as CharacterRole,
     gender: 'girl' as CharacterGender,
     url: '/presets/preset_maya.jpg',
     archetype: 'Pixar 3D Little Explorer',
   },
   {
-    name: 'Zara',
+    name: 'Jo',
     role: 'companion' as CharacterRole,
     gender: 'girl' as CharacterGender,
     url: '/presets/preset_zara.jpg',
     archetype: 'Pixar 3D Butterfly Dreamer',
   },
   {
-    name: 'Kofi',
+    name: 'Sam',
     role: 'companion' as CharacterRole,
     gender: 'boy' as CharacterGender,
     url: '/presets/preset_kofi.jpg',
     archetype: 'Pixar 3D Cheerful Big Brother',
   },
   {
-    name: 'Ms. Elena',
+    name: 'Milou',
     role: 'mentor' as CharacterRole,
     gender: 'woman' as CharacterGender,
     url: '/presets/preset_elena.jpg',

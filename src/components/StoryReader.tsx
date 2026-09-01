@@ -30,6 +30,7 @@ import {
   Baby,
   Languages,
   Globe,
+  StickyNote,
 } from 'lucide-react';
 import { StoryBook, StoryChapter, StoryChoice } from '../types';
 import { ReadingSettings } from '../utils/storage';
@@ -41,6 +42,7 @@ import {
   exportStoryToText,
   shareStory,
 } from '../utils/exportStory';
+import { MarginNotesSidebar } from './MarginNotesSidebar';
 import confetti from 'canvas-confetti';
 
 export interface LanguageOption {
@@ -150,8 +152,16 @@ export const StoryReader: React.FC<StoryReaderProps> = ({
   const [isRegeneratingImage, setIsRegeneratingImage] = useState(false);
   const [showSettingsDrawer, setShowSettingsDrawer] = useState(false);
   const [showExportMenu, setShowExportMenu] = useState(false);
+  const [isMarginNotesOpen, setIsMarginNotesOpen] = useState(false);
   const [exportLoading, setExportLoading] = useState<'pdf' | 'print' | 'epub' | 'txt' | 'share' | null>(null);
   const [shareFeedback, setShareFeedback] = useState<string | null>(null);
+
+  // Margin Notes count calculation
+  const currentChapterNotesCount = (currentChapter.notes || []).length;
+  const totalBookNotesCount = book.chapters.reduce(
+    (acc, chap) => acc + (chap.notes ? chap.notes.length : 0),
+    0
+  );
 
   // Multi-Language & Dutch Translation State
   const [selectedLanguage, setSelectedLanguage] = useState<string>('en');
@@ -689,6 +699,36 @@ export const StoryReader: React.FC<StoryReaderProps> = ({
             )}
           </div>
 
+          {/* Margin Notes Toggle Button */}
+          <button
+            id="reader-margin-notes-btn"
+            onClick={() => {
+              setIsMarginNotesOpen(!isMarginNotesOpen);
+              setShowSettingsDrawer(false);
+              setShowExportMenu(false);
+            }}
+            className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-full text-xs font-semibold transition-all shadow-xs ${
+              isMarginNotesOpen
+                ? 'bg-[#5B6B56] text-white shadow-md'
+                : 'bg-white hover:bg-[#EAE5DC] text-[#4A443F] border border-[#DFD8CA]'
+            }`}
+            title="Margin Notes & Private Chapter Annotations"
+          >
+            <StickyNote className="w-3.5 h-3.5" />
+            <span className="hidden md:inline">Margin Notes</span>
+            {currentChapterNotesCount > 0 && (
+              <span
+                className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
+                  isMarginNotesOpen
+                    ? 'bg-white/30 text-white'
+                    : 'bg-[#EAF0E8] text-[#3B5436]'
+                }`}
+              >
+                {currentChapterNotesCount}
+              </span>
+            )}
+          </button>
+
           {/* Plot Memory Toggle */}
           <button
             id="reader-memory-btn"
@@ -1047,9 +1087,25 @@ export const StoryReader: React.FC<StoryReaderProps> = ({
         {/* Chapter Header Banner */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-[#E8E2D6] pb-4">
           <div className="space-y-1">
-            <span className="text-xs uppercase font-bold tracking-widest text-[#5B6B56]">
-              Chapter {currentChapter.chapterNumber} of {book.targetChapters}
-            </span>
+            <div className="flex items-center gap-2">
+              <span className="text-xs uppercase font-bold tracking-widest text-[#5B6B56]">
+                Chapter {currentChapter.chapterNumber} of {book.targetChapters}
+              </span>
+              <span className="text-[#C5BCB0]">•</span>
+              <button
+                id="chapter-margin-notes-badge"
+                onClick={() => setIsMarginNotesOpen(true)}
+                className="inline-flex items-center gap-1 text-[11px] font-semibold text-[#5B6B56] hover:text-[#3A342F] bg-[#EAF0E8] hover:bg-[#DFEAD9] px-2 py-0.5 rounded-full border border-[#D0E0CC] transition-colors"
+                title="Open Margin Notes for this chapter"
+              >
+                <StickyNote className="w-3 h-3 text-[#3B5436]" />
+                <span>
+                  {currentChapterNotesCount > 0
+                    ? `${currentChapterNotesCount} ${currentChapterNotesCount === 1 ? 'Note' : 'Notes'}`
+                    : '+ Margin Note'}
+                </span>
+              </button>
+            </div>
             <h1 className="font-serif text-2xl sm:text-3xl font-bold tracking-tight text-[#3A342F]">
               {currentChapter.title}
             </h1>
@@ -1505,6 +1561,40 @@ export const StoryReader: React.FC<StoryReaderProps> = ({
           </div>
         </div>
       )}
+
+      {/* Floating Quick-Access Margin Notes Tab */}
+      <motion.button
+        id="floating-margin-notes-tab-btn"
+        whileHover={{ scale: 1.05 }}
+        whileTap={{ scale: 0.95 }}
+        onClick={() => setIsMarginNotesOpen(!isMarginNotesOpen)}
+        className={`fixed right-4 sm:right-6 bottom-6 z-30 flex items-center gap-2 px-3.5 py-2.5 sm:px-4 sm:py-3 rounded-2xl shadow-xl transition-all border ${
+          isMarginNotesOpen
+            ? 'bg-[#3A342F] text-white border-[#3A342F]'
+            : 'bg-[#5B6B56] hover:bg-[#4D5C47] text-white border-[#4D5C47]'
+        }`}
+        title="Open Floating Margin Notes"
+      >
+        <StickyNote className="w-4 h-4" />
+        <span className="text-xs font-bold hidden sm:inline">Margin Notes</span>
+        {currentChapterNotesCount > 0 && (
+          <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-white/25 text-white">
+            {currentChapterNotesCount}
+          </span>
+        )}
+      </motion.button>
+
+      {/* Margin Notes Sidebar Component */}
+      <MarginNotesSidebar
+        isOpen={isMarginNotesOpen}
+        onClose={() => setIsMarginNotesOpen(false)}
+        book={book}
+        currentChapter={currentChapter}
+        onUpdateBook={onUpdateBook}
+        onJumpToChapter={(idx) => {
+          onUpdateBook({ ...book, currentChapterIndex: idx });
+        }}
+      />
     </div>
   );
 };

@@ -130,6 +130,18 @@ export interface PlotMemory {
   worldStateChanges: string[];
 }
 
+export interface MarginNote {
+  id: string;
+  chapterId: string;
+  chapterNumber: number;
+  text: string;
+  selectedQuote?: string; // Optional excerpt or highlighted passage
+  category?: 'reflection' | 'reminder' | 'plot_idea' | 'character_note';
+  colorTag?: 'sage' | 'amber' | 'terracotta' | 'slate';
+  createdAt: number;
+  updatedAt?: number;
+}
+
 export interface StoryChapter {
   id: string;
   chapterNumber: number;
@@ -141,6 +153,7 @@ export interface StoryChapter {
   imageLoading?: boolean;
   choices: StoryChoice[];
   chosenChoiceId?: string;
+  notes?: MarginNote[]; // Chapter specific margin notes & annotations
   memoryUpdate?: {
     newItems?: string[];
     tensionShift?: string;
@@ -163,6 +176,7 @@ export interface StoryBook {
   plotMemory: PlotMemory;
   chapters: StoryChapter[];
   currentChapterIndex: number;
+  marginNotes?: MarginNote[]; // Book-level aggregate or global annotations
   isCompleted: boolean;
   isFavorite: boolean;
   coverImage?: string;
