@@ -54,7 +54,16 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
       <div className="relative rounded-3xl overflow-hidden bg-gradient-to-br from-[#EFEAE1] via-[#F5EFEB] to-[#EAE2D7] border border-[#DFD8CA] p-6 sm:p-10 shadow-sm text-[#4A443F]">
         <div className="relative z-10 max-w-2xl space-y-4">
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#EAF0E8] border border-[#D0E0CC] text-[#3F5439] text-xs font-semibold uppercase tracking-wider">
-            <Sparkles className="w-3.5 h-3.5 text-[#5B6B56]" /> MilousGem Infinite Chronicle Library
+            <img
+              src="/logo.png"
+              alt="Logo"
+              referrerPolicy="no-referrer"
+              className="w-4 h-4 rounded-full object-cover"
+              onError={(e) => {
+                (e.target as HTMLImageElement).src = '/icon.png';
+              }}
+            />
+            <span>MilousGem Infinite Chronicle Library</span>
           </div>
           <h1 className="font-serif text-3xl sm:text-4xl lg:text-5xl font-bold tracking-tight text-[#3A342F]">
             Your Living Sanctuary of Character Stories

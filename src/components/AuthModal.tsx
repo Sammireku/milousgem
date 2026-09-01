@@ -194,8 +194,19 @@ export const AuthModal: React.FC<AuthModalProps> = ({
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b border-[#E8E2D6] bg-[#F5EFEB]">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-[#EAF0E8] border border-[#CAD7C6] flex items-center justify-center shadow-xs">
-              <Sparkles className="w-5 h-5 text-[#5B6B56]" />
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#5B6B56] to-[#B45F3C] p-[1.5px] shadow-xs overflow-hidden">
+              <img
+                src="/logo.png"
+                alt="MilousGem Logo"
+                referrerPolicy="no-referrer"
+                className="w-full h-full object-cover rounded-[10px]"
+                onError={(e) => {
+                  const target = e.target as HTMLImageElement;
+                  if (!target.src.endsWith('/icon.png')) {
+                    target.src = '/icon.png';
+                  }
+                }}
+              />
             </div>
             <div>
               <h3 className="font-serif text-lg font-bold text-[#3A342F]">MilousGem Account</h3>

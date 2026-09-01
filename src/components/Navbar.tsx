@@ -39,10 +39,19 @@ export const Navbar: React.FC<NavbarProps> = ({
           onClick={() => onNavigate('library')}
           className="flex items-center gap-3 cursor-pointer group select-none shrink-0"
         >
-          <div className="relative w-10 h-10 rounded-xl bg-gradient-to-br from-[#5B6B56] via-[#B45F3C] to-[#8C6D38] p-[1.5px] shadow-sm group-hover:shadow-md transition-all">
-            <div className="w-full h-full bg-[#FAF8F5] rounded-[10px] flex items-center justify-center">
-              <Sparkles className="w-5 h-5 text-[#5B6B56] group-hover:rotate-12 transition-transform duration-300" />
-            </div>
+          <div className="relative w-10 h-10 rounded-xl bg-gradient-to-br from-[#5B6B56] via-[#B45F3C] to-[#8C6D38] p-[1.5px] shadow-sm group-hover:shadow-md transition-all overflow-hidden">
+            <img
+              src="/logo.png"
+              alt="MilousGem Logo"
+              referrerPolicy="no-referrer"
+              className="w-full h-full object-cover rounded-[10px]"
+              onError={(e) => {
+                const target = e.target as HTMLImageElement;
+                if (!target.src.endsWith('/icon.png')) {
+                  target.src = '/icon.png';
+                }
+              }}
+            />
           </div>
           <div>
             <div className="flex items-center gap-1.5">
