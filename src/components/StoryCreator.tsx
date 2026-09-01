@@ -50,6 +50,9 @@ export const StoryCreator: React.FC<StoryCreatorProps> = ({
   const [targetAudience, setTargetAudience] = useState<TargetAudience>('all_ages');
   const [moralLesson, setMoralLesson] = useState<string>('');
 
+  // Generation Mode: Full Book (Default) vs Interactive Branching
+  const [generationMode, setGenerationMode] = useState<'full_book' | 'interactive_branching'>('full_book');
+
   // Cast Selection (up to 3 characters)
   const [selectedCast, setSelectedCast] = useState<Character[]>(
     preselectedCharacter ? [preselectedCharacter] : characters.slice(0, 1)
@@ -63,7 +66,7 @@ export const StoryCreator: React.FC<StoryCreatorProps> = ({
   const [title, setTitle] = useState('');
   const [synopsis, setSynopsis] = useState('');
   const [tone, setTone] = useState<StoryTone>('epic_heroic');
-  const [targetChapters, setTargetChapters] = useState<number>(4);
+  const [targetChapters, setTargetChapters] = useState<number>(10);
   const [entropyLevel, setEntropyLevel] = useState<number>(0.85);
 
   // Generation loading
@@ -74,12 +77,12 @@ export const StoryCreator: React.FC<StoryCreatorProps> = ({
   const toggleKidsMode = (enable: boolean) => {
     setIsKidsMode(enable);
     if (enable) {
-      setTargetAudience('kids_middle');
+      setTargetAudience('kids_early');
       setSelectedGenre('magical_animals');
       setSelectedArtStyle('children_picturebook');
       setTone('whimsical');
       setMoralLesson(KIDS_MORAL_THEMES[0].id);
-      setTargetChapters(8); // Capped at 8 for kids
+      setTargetChapters(10); // Capped between 8 and 12 for kids mode
       setEntropyLevel(0.65);
     } else {
       setTargetAudience('all_ages');
@@ -162,19 +165,163 @@ export const StoryCreator: React.FC<StoryCreatorProps> = ({
   };
 
   const handleCreateAndWeave = async () => {
-    const finalTitle = title.trim() || `The Chronicle of ${selectedCast[0]?.name || 'Destiny'}`;
+    // If no cast member was selected/created, synthesize a delightful protagonist
+    let effectiveCast = selectedCast;
+    if (effectiveCast.length === 0) {
+      const autoHero: Character = {
+        id: `hero_auto_${Date.now()}`,
+        userId: 'default',
+        name: isKidsMode ? 'Pip & the Starlight Friends' : 'Valen the Pathfinder',
+        titleOrRole: isKidsMode ? 'The Curious Explorer' : 'The Reluctant Chrono-Voyager',
+        role: 'protagonist',
+        gender: isKidsMode ? 'other' : 'boy',
+        backstory: isKidsMode
+          ? 'A spirited little wanderer who loves making friends and discovering hidden wonders.'
+          : 'A seeker of forgotten maps navigating across uncharted timelines.',
+        personality: isKidsMode ? ['Curious', 'Kindhearted', 'Playful'] : ['Resourceful', 'Observant'],
+        flawOrSecret: isKidsMode
+          ? 'Always wants to see what is around the next bend before going to sleep.'
+          : 'Carries a pocket watch that counts down memories.',
+        signatureItem: isKidsMode ? 'A glowing starlight lantern' : 'An astrolabe of bottled starlight',
+        speechPattern: isKidsMode
+          ? 'Speaks with joyful enthusiasm and polite wonder'
+          : 'Speaks with quiet conviction',
+        genreAffinities: [selectedGenre],
+        visualProfile: {
+          photoUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=500&q=80',
+          appearanceTags: ['Friendly smile', 'bright eyes', 'colorful outfit'],
+          speciesOrArchetype: isKidsMode ? 'Pixar 3D Little Adventurer' : 'Human Wanderer',
+          artisticStylePrompt: 'Cute 3D animated character, soft lighting, expressive face',
+          keyColors: ['#f59e0b', '#10b981'],
+        },
+        createdAt: Date.now(),
+      };
+      effectiveCast = [autoHero];
+    }
+
+    const finalTitle = title.trim() || `The Chronicle of ${effectiveCast[0]?.name || 'Wonder'}`;
     const finalSynopsis = synopsis.trim() || `${GENRE_PRESETS.find((g) => g.id === selectedGenre)?.samplePromptSeed}`;
 
     setIsGenerating(true);
     setErrorMsg(null);
     setGenerationStepStatus(
-      isKidsMode
-        ? 'Weaving cheerful Chapter 1 picturebook adventure...'
-        : 'Weaving Chapter 1 narrative arc with anti-repetition engine...'
+      generationMode === 'full_book'
+        ? `Weaving all ${targetChapters} illustrated storybook pages...`
+        : `Weaving Chapter 1 narrative arc with anti-repetition engine...`
     );
 
     try {
-      // 1. Generate Chapter 1 prose and choices
+      if (generationMode === 'full_book') {
+        // Generate complete book with all pages
+        const fullBookRes = await fetch('/api/story/generate-full-book', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            genre: selectedGenre,
+            artStyle: selectedArtStyle,
+            tone: tone,
+            cast: effectiveCast,
+            bookTitle: finalTitle,
+            synopsis: finalSynopsis,
+            totalTargetChapters: targetChapters,
+            targetAudience: targetAudience,
+            moralLesson: moralLesson,
+            isKidsMode: isKidsMode,
+            entropyLevel: entropyLevel,
+          }),
+        });
+
+        const fullBookData = await fullBookRes.json();
+        if (!fullBookRes.ok || !fullBookData.success) {
+          throw new Error(fullBookData.error || 'Failed to generate full storybook');
+        }
+
+        const rawChapters = fullBookData.chapters || [];
+        setGenerationStepStatus('Illustrating storybook pages...');
+
+        // Generate scene illustration for cover and chapter 1
+        let coverImageUrl = effectiveCast[0]?.visualProfile.photoUrl || '';
+        try {
+          const illuRes = await fetch('/api/story/generate-illustration', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              prompt: rawChapters[0]?.illustrationPrompt || `${finalTitle}, ${selectedGenre} scene, soft magical lighting`,
+              artStyle: selectedArtStyle,
+              aspectRatio: '16:9',
+            }),
+          });
+          const illuData = await illuRes.json();
+          if (illuData.success && illuData.imageUrl) {
+            coverImageUrl = illuData.imageUrl;
+          }
+        } catch (e) {
+          console.warn('Cover illustration note:', e);
+        }
+
+        const allChapters: StoryChapter[] = rawChapters.map((ch: any, idx: number) => ({
+          id: `chap_${idx + 1}_${Date.now()}`,
+          chapterNumber: ch.chapterNumber || idx + 1,
+          title: ch.title || `Chapter ${idx + 1}`,
+          summary: ch.summary || 'A milestone in the journey.',
+          content: ch.content || 'The story unfolds with warmth and wonder.',
+          illustrationPrompt: ch.illustrationPrompt,
+          imageUrl: idx === 0 ? coverImageUrl : effectiveCast[idx % effectiveCast.length]?.visualProfile?.photoUrl || coverImageUrl,
+          choices: [
+            {
+              id: `c_${idx}_1`,
+              label: 'Turn to the next magical page',
+              actionDescription: 'Step forward and discover what happens next.',
+              consequenceHint: 'Turns the page to continue the adventure.',
+              riskLevel: 'safe',
+            },
+          ],
+          createdAt: Date.now() + idx,
+        }));
+
+        const newBook: StoryBook = {
+          id: `book_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
+          userId: 'default',
+          title: finalTitle,
+          synopsis: finalSynopsis,
+          genre: selectedGenre,
+          artStyle: selectedArtStyle,
+          tone: tone,
+          targetAudience: targetAudience,
+          moralLesson: moralLesson,
+          isKidsMode: isKidsMode,
+          cast: effectiveCast,
+          entropyLevel: entropyLevel,
+          targetChapters: allChapters.length,
+          plotMemory: {
+            keyDecisions: ['Created complete illustrated storybook.'],
+            activeInventory: effectiveCast.map((c) => c.signatureItem).filter(Boolean),
+            characterTensions: effectiveCast.map((c) => `${c.name}: ${c.flawOrSecret}`).filter(Boolean),
+            foreshadowedClues: [],
+            worldStateChanges: ['The chronicle is woven in full.'],
+          },
+          chapters: allChapters,
+          currentChapterIndex: 0,
+          isCompleted: true,
+          isFavorite: false,
+          coverImage: coverImageUrl,
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+        };
+
+        try {
+          confetti({
+            particleCount: 50,
+            spread: 70,
+            origin: { y: 0.6 },
+          });
+        } catch (e) {}
+
+        onCreateBook(newBook);
+        return;
+      }
+
+      // Otherwise interactive branching mode (Chapter 1 with choices)
       const chapterRes = await fetch('/api/story/generate-chapter', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -182,7 +329,7 @@ export const StoryCreator: React.FC<StoryCreatorProps> = ({
           genre: selectedGenre,
           artStyle: selectedArtStyle,
           tone: tone,
-          cast: selectedCast,
+          cast: effectiveCast,
           bookTitle: finalTitle,
           synopsis: finalSynopsis,
           chapterNumber: 1,
@@ -193,8 +340,8 @@ export const StoryCreator: React.FC<StoryCreatorProps> = ({
           isKidsMode: isKidsMode,
           plotMemory: {
             keyDecisions: [],
-            activeInventory: selectedCast.map((c) => c.signatureItem).filter(Boolean),
-            characterTensions: selectedCast.map((c) => `${c.name}: ${c.flawOrSecret}`).filter(Boolean),
+            activeInventory: effectiveCast.map((c) => c.signatureItem).filter(Boolean),
+            characterTensions: effectiveCast.map((c) => `${c.name}: ${c.flawOrSecret}`).filter(Boolean),
             foreshadowedClues: [],
             worldStateChanges: [],
           },
@@ -237,7 +384,7 @@ export const StoryCreator: React.FC<StoryCreatorProps> = ({
         summary: generatedChapter.summary || 'The journey begins under unprecedented circumstances.',
         content: generatedChapter.content || 'The world shifted on its axis as the journey began...',
         illustrationPrompt: generatedChapter.illustrationPrompt,
-        imageUrl: chapterImageUrl || selectedCast[0]?.visualProfile.photoUrl,
+        imageUrl: chapterImageUrl || effectiveCast[0]?.visualProfile.photoUrl,
         choices: generatedChapter.choices || [
           {
             id: 'c1_investigate',
@@ -269,17 +416,17 @@ export const StoryCreator: React.FC<StoryCreatorProps> = ({
         targetAudience: targetAudience,
         moralLesson: moralLesson,
         isKidsMode: isKidsMode,
-        cast: selectedCast,
+        cast: effectiveCast,
         entropyLevel: entropyLevel,
         targetChapters: targetChapters,
         plotMemory: {
           keyDecisions: ['Embarked on the journey with the primary cast.'],
           activeInventory: [
-            ...selectedCast.map((c) => c.signatureItem).filter(Boolean),
+            ...effectiveCast.map((c) => c.signatureItem).filter(Boolean),
             ...(generatedChapter.memoryUpdate?.newItems || []),
           ],
           characterTensions: [
-            ...selectedCast.map((c) => `${c.name}: ${c.flawOrSecret}`).filter(Boolean),
+            ...effectiveCast.map((c) => `${c.name}: ${c.flawOrSecret}`).filter(Boolean),
             ...(generatedChapter.memoryUpdate?.tensionShift ? [generatedChapter.memoryUpdate.tensionShift] : []),
           ],
           foreshadowedClues: generatedChapter.memoryUpdate?.clueDiscovered
@@ -291,7 +438,7 @@ export const StoryCreator: React.FC<StoryCreatorProps> = ({
         currentChapterIndex: 0,
         isCompleted: false,
         isFavorite: false,
-        coverImage: chapterImageUrl || selectedCast[0]?.visualProfile.photoUrl,
+        coverImage: chapterImageUrl || effectiveCast[0]?.visualProfile.photoUrl,
         createdAt: Date.now(),
         updatedAt: Date.now(),
       };
@@ -442,10 +589,10 @@ export const StoryCreator: React.FC<StoryCreatorProps> = ({
             <div>
               <h3 className="font-serif text-base sm:text-lg font-bold text-[#3A342F] flex items-center gap-2">
                 <Users className="w-5 h-5 text-[#5B6B56]" />
-                Select Cast Members (1 to 3)
+                Select Cast Members (Optional: 1 to 3)
               </h3>
               <p className="text-xs text-[#78716A]">
-                Choose the lead protagonist and companions for this chronicle.
+                Choose characters from your roster, or proceed directly to let AI create custom heroes.
               </p>
             </div>
             <button
@@ -458,37 +605,55 @@ export const StoryCreator: React.FC<StoryCreatorProps> = ({
           </div>
 
           {characters.length === 0 ? (
-            <div className="p-8 sm:p-12 text-center rounded-3xl bg-[#F5EFEB]/70 border border-[#DFD8CA] space-y-4">
+            <div className="p-8 sm:p-10 text-center rounded-3xl bg-[#F5EFEB]/70 border border-[#DFD8CA] space-y-4">
               <div className="w-12 h-12 rounded-2xl bg-[#EAE5DC] text-[#5B6B56] flex items-center justify-center mx-auto">
                 <Users className="w-6 h-6" />
               </div>
               <div className="space-y-1">
-                <h4 className="font-serif text-lg font-bold text-[#3A342F]">No Characters Created Yet</h4>
+                <h4 className="font-serif text-lg font-bold text-[#3A342F]">No Custom Characters Yet</h4>
                 <p className="text-xs text-[#6E665E] max-w-md mx-auto">
-                  Take a photo or upload an image in the Character Studio to bring your hero or kid's story avatar to life.
+                  You can forge a 3D avatar in the Character Studio from a photo, or skip this step to let AI craft an original protagonist tailored to your genre.
                 </p>
               </div>
-              <button
-                onClick={onOpenCharacterStudio}
-                className="px-6 py-2.5 rounded-xl bg-[#5B6B56] text-white font-bold text-xs shadow-xs hover:bg-[#4D5C47] transition-all"
-              >
-                Create First Character
-              </button>
+              <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
+                <button
+                  onClick={onOpenCharacterStudio}
+                  className="px-5 py-2.5 rounded-xl bg-white hover:bg-[#EAE5DC] text-[#4A443F] font-bold text-xs border border-[#DFD8CA] shadow-xs transition-all flex items-center gap-1.5"
+                >
+                  <Sparkles className="w-3.5 h-3.5 text-[#5B6B56]" />
+                  <span>Create Character in Studio</span>
+                </button>
+                <button
+                  onClick={() => setStep(2)}
+                  className="px-5 py-2.5 rounded-xl bg-[#5B6B56] text-white font-bold text-xs shadow-xs hover:bg-[#4D5C47] transition-all flex items-center gap-1.5"
+                >
+                  <span>Weave with AI Auto-Hero</span>
+                  <ArrowRight className="w-3.5 h-3.5" />
+                </button>
+              </div>
             </div>
           ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-              {characters.map((char) => {
-                const isSelected = selectedCast.some((c) => c.id === char.id);
-                return (
-                  <CharacterCard
-                    key={char.id}
-                    character={char}
-                    isSelected={isSelected}
-                    isCastMode={true}
-                    onSelectForStory={() => toggleCharacterInCast(char)}
-                  />
-                );
-              })}
+            <div className="space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                {characters.map((char) => {
+                  const isSelected = selectedCast.some((c) => c.id === char.id);
+                  return (
+                    <CharacterCard
+                      key={char.id}
+                      character={char}
+                      isSelected={isSelected}
+                      isCastMode={true}
+                      onSelectForStory={() => toggleCharacterInCast(char)}
+                    />
+                  );
+                })}
+              </div>
+              {selectedCast.length === 0 && (
+                <div className="p-3.5 rounded-xl bg-[#F5EFEB] border border-[#DFD8CA] text-xs text-[#6E665E] flex items-center justify-between">
+                  <span>No character currently selected — an original hero will be generated automatically.</span>
+                  <span className="font-semibold text-[#5B6B56]">Auto Protagonist Mode Active</span>
+                </div>
+              )}
             </div>
           )}
 
@@ -496,8 +661,7 @@ export const StoryCreator: React.FC<StoryCreatorProps> = ({
             <button
               id="wizard-step1-next"
               onClick={() => setStep(2)}
-              disabled={selectedCast.length === 0}
-              className="flex items-center gap-2 px-6 py-3 rounded-xl bg-[#5B6B56] hover:bg-[#4D5C47] disabled:opacity-50 text-white font-bold text-sm shadow-md transition-all"
+              className="flex items-center gap-2 px-6 py-3 rounded-xl bg-[#5B6B56] hover:bg-[#4D5C47] text-white font-bold text-sm shadow-md transition-all"
             >
               <span>Next: Select Genre & Art Style</span>
               <ArrowRight className="w-4 h-4" />
@@ -522,13 +686,14 @@ export const StoryCreator: React.FC<StoryCreatorProps> = ({
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-semibold text-[#2C4A25] mb-1.5">
-                    Target Age Group
+                    Target Age Bracket
                   </label>
-                  <div className="grid grid-cols-3 gap-2">
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                     {[
-                      { id: 'kids_early', label: 'Ages 3-5', sub: 'Preschool' },
-                      { id: 'kids_middle', label: 'Ages 6-9', sub: 'Early Reader' },
-                      { id: 'young_reader', label: 'Ages 10-12', sub: 'Middle Grade' },
+                      { id: 'kids_preschool', label: 'Ages 2-4', sub: 'Toddlers' },
+                      { id: 'kids_early', label: 'Ages 5-7', sub: 'Early Readers' },
+                      { id: 'kids_middle', label: 'Ages 8-10', sub: 'Independent' },
+                      { id: 'young_reader', label: 'Ages 11-13', sub: 'Middle Grade' },
                     ].map((age) => (
                       <button
                         key={age.id}
@@ -556,7 +721,7 @@ export const StoryCreator: React.FC<StoryCreatorProps> = ({
                     onChange={(e) => setMoralLesson(e.target.value)}
                     className="w-full px-3 py-2 rounded-xl bg-white border border-[#D0E0CC] text-[#3A342F] text-xs font-medium focus:outline-none focus:border-[#3B5436]"
                   >
-                    <option value="">None (Pure Adventure)</option>
+                    <option value="">None (Pure Adventure & Discovery)</option>
                     {KIDS_MORAL_THEMES.map((theme) => (
                       <option key={theme.id} value={theme.id}>
                         {theme.label} — {theme.description}
@@ -788,13 +953,98 @@ export const StoryCreator: React.FC<StoryCreatorProps> = ({
 
             {/* Anti-Repetition & Engine Controls */}
             <div className="space-y-5 p-5 rounded-2xl bg-white border border-[#DFD8CA] shadow-sm">
-              <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-[#5B6B56]">
-                <Sliders className="w-4 h-4" />
-                <span>Anti-Repetition & Entropy Control</span>
+              {/* Generation Mode Selector */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-bold uppercase tracking-wider text-[#5B6B56] flex items-center gap-1.5">
+                    <BookOpen className="w-3.5 h-3.5" />
+                    Story Delivery Format
+                  </label>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                  <button
+                    type="button"
+                    onClick={() => setGenerationMode('full_book')}
+                    className={`p-3 rounded-xl text-left border transition-all ${
+                      generationMode === 'full_book'
+                        ? 'bg-[#EAF0E8] border-[#5B6B56] ring-1 ring-[#5B6B56]'
+                        : 'bg-[#FDFCF9] border-[#DFD8CA] hover:border-[#8C9A86]'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="font-serif font-bold text-xs sm:text-sm text-[#3A342F]">
+                        Complete Storybook
+                      </span>
+                      <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-[#3B5436] text-white">
+                        Default
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-[#6E665E] leading-relaxed">
+                      Generates the whole cohesive storybook from start to finish.
+                    </p>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setGenerationMode('interactive_branching')}
+                    className={`p-3 rounded-xl text-left border transition-all ${
+                      generationMode === 'interactive_branching'
+                        ? 'bg-[#EAF0E8] border-[#5B6B56] ring-1 ring-[#5B6B56]'
+                        : 'bg-[#FDFCF9] border-[#DFD8CA] hover:border-[#8C9A86]'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="font-serif font-bold text-xs sm:text-sm text-[#3A342F]">
+                        Interactive Branching
+                      </span>
+                      <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-[#EAE5DC] text-[#4A443F]">
+                        Option
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-[#6E665E] leading-relaxed">
+                      Choose branching decisions at the end of each chapter.
+                    </p>
+                  </button>
+                </div>
+              </div>
+
+              {/* Target Chapters / Pages */}
+              <div className="space-y-2 pt-2 border-t border-[#E8E2D6]">
+                <div className="flex items-center justify-between">
+                  <label className="block text-xs font-medium text-[#4A443F]">
+                    {isKidsMode ? 'Kids Storybook Length (Pages)' : 'Target Chapter Count'}
+                  </label>
+                  {isKidsMode && (
+                    <span className="text-[10px] font-semibold text-[#3B5436] bg-[#EAF0E8] px-2 py-0.5 rounded-full">
+                      Capped at 8-12 Pages
+                    </span>
+                  )}
+                </div>
+                <div className="grid grid-cols-5 gap-2">
+                  {(isKidsMode ? [8, 9, 10, 11, 12] : [3, 4, 5, 6, 8]).map((num) => (
+                    <button
+                      key={num}
+                      type="button"
+                      onClick={() => setTargetChapters(num)}
+                      className={`py-2 rounded-xl text-xs font-bold border transition-all shadow-xs ${
+                        targetChapters === num
+                          ? 'bg-[#5B6B56] text-white border-[#5B6B56] shadow-xs'
+                          : 'bg-[#F5EFEB] text-[#4A443F] border-[#DFD8CA] hover:border-[#8C9A86]'
+                      }`}
+                    >
+                      {num} {isKidsMode ? 'Pages' : 'Chaps'}
+                    </button>
+                  ))}
+                </div>
+                <p className="text-[11px] text-[#78716A]">
+                  {isKidsMode
+                    ? 'Optimally paced for bedtime read-aloud and picturebook engagement.'
+                    : 'Balanced for rich story arcs and evolving character dilemmas.'}
+                </p>
               </div>
 
               {/* Entropy Slider */}
-              <div className="space-y-2">
+              <div className="space-y-2 pt-2 border-t border-[#E8E2D6]">
                 <div className="flex items-center justify-between text-xs">
                   <span className="font-medium text-[#4A443F]">Narrative Entropy (Trope Subversion)</span>
                   <span className="font-mono text-[#5B6B56] font-bold">{Math.round(entropyLevel * 100)}%</span>
@@ -815,33 +1065,7 @@ export const StoryCreator: React.FC<StoryCreatorProps> = ({
                   <span>High Subversion & Twists</span>
                 </div>
                 <p className="text-[11px] text-[#6E665E] leading-tight pt-1">
-                  Controls the AI's resistance to cliches, introducing fresh sensory motifs and engaging dilemma branching.
-                </p>
-              </div>
-
-              {/* Target Chapters */}
-              <div className="space-y-2 pt-2 border-t border-[#E8E2D6]">
-                <label className="block text-xs font-medium text-[#4A443F]">
-                  Target Chapter Count
-                </label>
-                <div className="grid grid-cols-4 gap-2">
-                  {[2, 3, 4, 5].map((num) => (
-                    <button
-                      key={num}
-                      type="button"
-                      onClick={() => setTargetChapters(num)}
-                      className={`py-2 rounded-xl text-xs font-bold border transition-all shadow-xs ${
-                        targetChapters === num
-                          ? 'bg-[#5B6B56] text-white border-[#5B6B56] shadow-xs'
-                          : 'bg-[#F5EFEB] text-[#4A443F] border-[#DFD8CA] hover:border-[#8C9A86]'
-                      }`}
-                    >
-                      {num} Chapters
-                    </button>
-                  ))}
-                </div>
-                <p className="text-[11px] text-[#78716A]">
-                  Interactive storybook with choice branching at the end of each chapter.
+                  Controls the AI's resistance to clichés, introducing fresh sensory motifs and engaging dilemma branching.
                 </p>
               </div>
 
@@ -851,23 +1075,29 @@ export const StoryCreator: React.FC<StoryCreatorProps> = ({
                   Assembled Cast
                 </label>
                 <div className="flex flex-wrap gap-2">
-                  {selectedCast.map((c, i) => (
-                    <div
-                      key={c.id}
-                      className="flex items-center gap-2 px-2.5 py-1.5 rounded-xl bg-[#F5EFEB] border border-[#DFD8CA] text-xs text-[#4A443F]"
-                    >
-                      <img
-                        src={c.visualProfile.photoUrl}
-                        alt={c.name}
-                        referrerPolicy="no-referrer"
-                        className="w-5 h-5 rounded-full object-cover"
-                      />
-                      <span className="font-medium">{c.name}</span>
-                      <span className="text-[10px] text-[#5B6B56] font-semibold capitalize">
-                        ({i === 0 ? 'Lead' : c.role})
-                      </span>
-                    </div>
-                  ))}
+                  {selectedCast.length === 0 ? (
+                    <span className="text-xs text-[#78716A] italic">
+                      No custom characters selected — an original protagonist will be auto-generated.
+                    </span>
+                  ) : (
+                    selectedCast.map((c, i) => (
+                      <div
+                        key={c.id}
+                        className="flex items-center gap-2 px-2.5 py-1.5 rounded-xl bg-[#F5EFEB] border border-[#DFD8CA] text-xs text-[#4A443F]"
+                      >
+                        <img
+                          src={c.visualProfile.photoUrl}
+                          alt={c.name}
+                          referrerPolicy="no-referrer"
+                          className="w-5 h-5 rounded-full object-cover"
+                        />
+                        <span className="font-medium">{c.name}</span>
+                        <span className="text-[10px] text-[#5B6B56] font-semibold capitalize">
+                          ({i === 0 ? 'Lead' : c.role})
+                        </span>
+                      </div>
+                    ))
+                  )}
                 </div>
               </div>
             </div>
@@ -897,7 +1127,7 @@ export const StoryCreator: React.FC<StoryCreatorProps> = ({
               ) : (
                 <>
                   <Feather className="w-5 h-5" />
-                  <span>Weave Chronicle (Generate Chapter 1)</span>
+                  <span>{generationMode === 'full_book' ? 'Weave Complete Storybook' : 'Weave Chronicle (Chapter 1)'}</span>
                 </>
               )}
             </button>

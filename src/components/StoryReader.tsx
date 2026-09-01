@@ -28,6 +28,8 @@ import {
   BookMarked,
   Check,
   Baby,
+  Languages,
+  Globe,
 } from 'lucide-react';
 import { StoryBook, StoryChapter, StoryChoice } from '../types';
 import { ReadingSettings } from '../utils/storage';
@@ -39,6 +41,25 @@ import {
   shareStory,
 } from '../utils/exportStory';
 import confetti from 'canvas-confetti';
+
+export interface LanguageOption {
+  id: string;
+  name: string;
+  nativeName: string;
+  flag: string;
+  speechCode: string;
+}
+
+export const SUPPORTED_LANGUAGES: LanguageOption[] = [
+  { id: 'en', name: 'English', nativeName: 'English (Original)', flag: '🇬🇧', speechCode: 'en-US' },
+  { id: 'nl', name: 'Dutch', nativeName: 'Nederlands', flag: '🇳🇱', speechCode: 'nl-NL' },
+  { id: 'es', name: 'Spanish', nativeName: 'Español', flag: '🇪🇸', speechCode: 'es-ES' },
+  { id: 'fr', name: 'French', nativeName: 'Français', flag: '🇫🇷', speechCode: 'fr-FR' },
+  { id: 'de', name: 'German', nativeName: 'Deutsch', flag: '🇩🇪', speechCode: 'de-DE' },
+  { id: 'ja', name: 'Japanese', nativeName: '日本語', flag: '🇯🇵', speechCode: 'ja-JP' },
+  { id: 'zh', name: 'Mandarin', nativeName: '中文', flag: '🇨🇳', speechCode: 'zh-CN' },
+  { id: 'it', name: 'Italian', nativeName: 'Italiano', flag: '🇮🇹', speechCode: 'it-IT' },
+];
 
 interface StoryReaderProps {
   book: StoryBook;
@@ -84,6 +105,27 @@ const THEME_STYLES: Record<string, { bg: string; text: string; proseBg: string; 
     border: 'border-[#4A443F]',
     accent: 'text-[#D0A97E]',
   },
+  classic_paper: {
+    bg: 'bg-[#FDFBF7]',
+    text: 'text-[#3A342F]',
+    proseBg: 'bg-[#FAF6EE]',
+    border: 'border-[#E2DAC8]',
+    accent: 'text-[#8C5D39]',
+  },
+  midnight_galaxy: {
+    bg: 'bg-[#121526]',
+    text: 'text-[#EAEFFE]',
+    proseBg: 'bg-[#1A1E36]',
+    border: 'border-[#2D3559]',
+    accent: 'text-[#7AA2F7]',
+  },
+  forest_dream: {
+    bg: 'bg-[#18231C]',
+    text: 'text-[#E4EFE7]',
+    proseBg: 'bg-[#223127]',
+    border: 'border-[#384E3F]',
+    accent: 'text-[#9ECE6A]',
+  },
 };
 
 export const StoryReader: React.FC<StoryReaderProps> = ({
@@ -110,22 +152,105 @@ export const StoryReader: React.FC<StoryReaderProps> = ({
   const [exportLoading, setExportLoading] = useState<'pdf' | 'epub' | 'txt' | 'share' | null>(null);
   const [shareFeedback, setShareFeedback] = useState<string | null>(null);
 
-  // Bookmark: Sync page index with readingSettings
+  // Multi-Language & Dutch Translation State
+  const [selectedLanguage, setSelectedLanguage] = useState<string>('en');
+  const [translationsCache, setTranslationsCache] = useState<
+    Record<string, { title: string; summary?: string; content: string; targetLanguage: string }>
+  >({});
+  const [isTranslating, setIsTranslating] = useState(false);
+  const [translationError, setTranslationError] = useState<string | null>(null);
+  const [isBilingualMode, setIsBilingualMode] = useState(false);
+  const [showLanguageMenu, setShowLanguageMenu] = useState(false);
+
+  // Active translation for current chapter
+  const currentTranslationKey = `${currentChapter.id}_${selectedLanguage}`;
+  const activeTranslation = selectedLanguage !== 'en' ? translationsCache[currentTranslationKey] : null;
+  const currentLangOption = SUPPORTED_LANGUAGES.find((l) => l.id === selectedLanguage) || SUPPORTED_LANGUAGES[0];
+
+  const handleSelectLanguage = async (langId: string) => {
+    setSelectedLanguage(langId);
+    setShowLanguageMenu(false);
+    narrator.stop();
+    setIsSpeaking(false);
+
+    if (langId === 'en') return;
+
+    const cacheKey = `${currentChapter.id}_${langId}`;
+    if (translationsCache[cacheKey]) {
+      return;
+    }
+
+    const targetOption = SUPPORTED_LANGUAGES.find((l) => l.id === langId);
+    if (!targetOption) return;
+
+    setIsTranslating(true);
+    setTranslationError(null);
+
+    try {
+      const res = await fetch('/api/story/translate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: currentChapter.title,
+          summary: currentChapter.summary,
+          content: currentChapter.content,
+          targetLanguage: targetOption.name,
+          tone: book.tone,
+          isKidsMode: book.isKidsMode,
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setTranslationsCache((prev) => ({
+          ...prev,
+          [cacheKey]: {
+            title: data.translatedTitle || currentChapter.title,
+            summary: data.translatedSummary || currentChapter.summary,
+            content: data.translatedContent || currentChapter.content,
+            targetLanguage: targetOption.name,
+          },
+        }));
+      } else {
+        throw new Error(data.error || 'Translation failed');
+      }
+    } catch (err: any) {
+      console.error('Translation error:', err);
+      setTranslationError(`Could not translate into ${targetOption.name}. Please try again.`);
+    } finally {
+      setIsTranslating(false);
+    }
+  };
+
+  // Re-fetch translation automatically when chapter index changes if a language is selected
+  useEffect(() => {
+    if (selectedLanguage !== 'en') {
+      const cacheKey = `${currentChapter.id}_${selectedLanguage}`;
+      if (!translationsCache[cacheKey]) {
+        handleSelectLanguage(selectedLanguage);
+      }
+    }
+  }, [currentChapterIndex, selectedLanguage, currentChapter.id]);
+
+  // Bookmark: Resume where left off on initial open
   useEffect(() => {
     const savedPage = readingSettings.bookmarks[book.id];
-    if (savedPage !== undefined && savedPage !== currentChapterIndex) {
+    if (savedPage !== undefined && savedPage >= 0 && savedPage < book.chapters.length && savedPage !== currentChapterIndex) {
       onUpdateBook({ ...book, currentChapterIndex: savedPage });
     }
-  }, [book.id, readingSettings.bookmarks]);
+  }, [book.id]);
 
+  // Keep bookmarks saved for this book
   useEffect(() => {
-    onUpdateSettings({
-      ...readingSettings,
-      bookmarks: { ...readingSettings.bookmarks, [book.id]: currentChapterIndex },
-    });
-  }, [currentChapterIndex]);
+    if (readingSettings.bookmarks[book.id] !== currentChapterIndex) {
+      onUpdateSettings({
+        ...readingSettings,
+        bookmarks: { ...readingSettings.bookmarks, [book.id]: currentChapterIndex },
+      });
+    }
+  }, [currentChapterIndex, book.id]);
 
-  const themeStyle = THEME_STYLES[readingSettings.theme] || THEME_STYLES.natural_tones;
+  const activePaletteKey = readingSettings.colorPalette || readingSettings.theme || 'natural_tones';
+  const themeStyle = THEME_STYLES[activePaletteKey] || THEME_STYLES[readingSettings.theme] || THEME_STYLES.natural_tones;
 
   // Sync speech state
   useEffect(() => {
@@ -150,9 +275,12 @@ export const StoryReader: React.FC<StoryReaderProps> = ({
     if (isSpeaking) {
       narrator.stop();
     } else {
-      const fullText = `${currentChapter.title}. ${currentChapter.content}`;
+      const activeTitle = activeTranslation?.title || currentChapter.title;
+      const activeContent = activeTranslation?.content || currentChapter.content;
+      const fullText = `${activeTitle}. ${activeContent}`;
       narrator.speak(fullText, {
         rate: readingSettings.speechRate,
+        lang: currentLangOption.speechCode,
         onEnd: () => setIsSpeaking(false),
       });
     }
@@ -426,6 +554,36 @@ export const StoryReader: React.FC<StoryReaderProps> = ({
 
         {/* Reader Controls */}
         <div className="flex items-center gap-1 sm:gap-2 shrink-0 relative">
+          {/* Bookmark Button */}
+          <button
+            id="reader-bookmark-btn"
+            onClick={() => {
+              const currentSaved = readingSettings.bookmarks[book.id];
+              const isCurrentlySaved = currentSaved === currentChapterIndex;
+              const nextBookmarks = { ...readingSettings.bookmarks };
+              if (isCurrentlySaved) {
+                delete nextBookmarks[book.id];
+                setShareFeedback(`Bookmark removed from Chapter ${currentChapterIndex + 1}`);
+              } else {
+                nextBookmarks[book.id] = currentChapterIndex;
+                setShareFeedback(`Bookmark saved at Chapter ${currentChapterIndex + 1}!`);
+              }
+              onUpdateSettings({ ...readingSettings, bookmarks: nextBookmarks });
+              setTimeout(() => setShareFeedback(null), 3000);
+            }}
+            className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-full text-xs font-semibold transition-all shadow-xs ${
+              readingSettings.bookmarks[book.id] === currentChapterIndex
+                ? 'bg-[#B45F3C] text-white shadow-md'
+                : 'bg-white hover:bg-[#EAE5DC] text-[#4A443F] border border-[#DFD8CA]'
+            }`}
+            title="Bookmark Current Page"
+          >
+            <Bookmark className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">
+              {readingSettings.bookmarks[book.id] === currentChapterIndex ? 'Bookmarked' : 'Bookmark'}
+            </span>
+          </button>
+
           {/* Narration Button */}
           <button
             id="reader-narration-btn"
@@ -435,11 +593,86 @@ export const StoryReader: React.FC<StoryReaderProps> = ({
                 ? 'bg-[#5B6B56] text-white shadow-md animate-pulse'
                 : 'bg-white hover:bg-[#EAE5DC] text-[#4A443F] border border-[#DFD8CA]'
             }`}
-            title="Read Aloud Narration"
+            title={`Read Aloud Narration (${currentLangOption.nativeName})`}
           >
             {isSpeaking ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />}
             <span className="hidden sm:inline">{isSpeaking ? 'Pause' : 'Read Aloud'}</span>
           </button>
+
+          {/* Language Selector Dropdown Toggle */}
+          <div className="relative">
+            <button
+              id="reader-language-btn"
+              onClick={() => {
+                setShowLanguageMenu(!showLanguageMenu);
+                setShowExportMenu(false);
+                setShowSettingsDrawer(false);
+              }}
+              className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-full text-xs font-semibold transition-all shadow-xs ${
+                selectedLanguage !== 'en'
+                  ? 'bg-[#5B6B56] text-white border border-[#5B6B56] shadow-sm'
+                  : 'bg-white hover:bg-[#EAE5DC] text-[#4A443F] border border-[#DFD8CA]'
+              }`}
+              title="Story Translation & Languages"
+            >
+              <Languages className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">{currentLangOption.flag} {currentLangOption.name}</span>
+              <span className="sm:hidden">{currentLangOption.flag}</span>
+            </button>
+
+            {showLanguageMenu && (
+              <div className="absolute right-0 mt-2 w-64 p-2 rounded-2xl bg-white border border-[#DFD8CA] shadow-2xl z-40 text-xs text-[#4A443F] space-y-1 animate-fade-in">
+                <div className="px-3 py-1.5 border-b border-[#E8E2D6] font-serif font-bold text-[#3A342F] flex items-center justify-between">
+                  <span>Language & Translation</span>
+                  <Globe className="w-3.5 h-3.5 text-[#5B6B56]" />
+                </div>
+
+                <div className="max-h-60 overflow-y-auto space-y-0.5 py-1">
+                  {SUPPORTED_LANGUAGES.map((lang) => (
+                    <button
+                      key={lang.id}
+                      onClick={() => handleSelectLanguage(lang.id)}
+                      className={`w-full text-left px-3 py-2 rounded-xl flex items-center justify-between transition-colors ${
+                        selectedLanguage === lang.id
+                          ? 'bg-[#EAF0E8] text-[#3B5436] font-bold'
+                          : 'hover:bg-[#F5EFEB] text-[#4A443F]'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2">
+                        <span className="text-base leading-none">{lang.flag}</span>
+                        <div>
+                          <div className="font-medium">{lang.nativeName}</div>
+                          <div className="text-[10px] text-[#78716A]">{lang.name}</div>
+                        </div>
+                      </div>
+                      {selectedLanguage === lang.id && <Check className="w-3.5 h-3.5 text-[#3B5436]" />}
+                    </button>
+                  ))}
+                </div>
+
+                {selectedLanguage !== 'en' && (
+                  <div className="pt-2 border-t border-[#E8E2D6]">
+                    <button
+                      onClick={() => setIsBilingualMode(!isBilingualMode)}
+                      className={`w-full px-3 py-2 rounded-xl text-xs font-semibold flex items-center justify-between transition-colors ${
+                        isBilingualMode
+                          ? 'bg-[#5B6B56] text-white'
+                          : 'bg-[#F5EFEB] text-[#4A443F] hover:bg-[#EAE5DC]'
+                      }`}
+                    >
+                      <span className="flex items-center gap-1.5">
+                        <Layers className="w-3.5 h-3.5" />
+                        <span>Bilingual Side-by-Side View</span>
+                      </span>
+                      <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${isBilingualMode ? 'bg-white/20' : 'bg-black/10'}`}>
+                        {isBilingualMode ? 'ON' : 'OFF'}
+                      </span>
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
 
           {/* Plot Memory Toggle */}
           <button
@@ -463,7 +696,7 @@ export const StoryReader: React.FC<StoryReaderProps> = ({
               setShowExportMenu(false);
             }}
             className="p-2 rounded-full bg-white text-[#4A443F] hover:bg-[#EAE5DC] border border-[#DFD8CA] shadow-xs transition-colors"
-            title="Reading Typography & Theme"
+            title="Story Aesthetics & Themes"
           >
             <Sliders className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
           </button>
@@ -556,80 +789,126 @@ export const StoryReader: React.FC<StoryReaderProps> = ({
       {/* Settings Drawer (Popup) */}
       {showSettingsDrawer && (
         <div className="max-w-4xl mx-auto px-4 sm:px-6 pt-4 animate-fade-in">
-          <div className="p-5 rounded-2xl bg-white border border-[#DFD8CA] shadow-xl grid grid-cols-1 sm:grid-cols-3 gap-5 text-xs text-[#4A443F]">
-            {/* Palette & Theme Picker */}
-            <div className="space-y-2">
-              <label className="font-semibold text-[#6E665E]">Aesthetics</label>
-              <div className="grid grid-cols-2 gap-1.5">
-                {[
-                  { id: 'natural_tones', label: 'Natural Tones' },
-                  { id: 'parchment', label: 'Parchment' },
-                  { id: 'forest_sage', label: 'Forest Sage' },
-                  { id: 'warm_terracotta', label: 'Terracotta' },
-                  { id: 'slate_stone', label: 'Slate Stone' },
-                ].map((t) => (
-                  <button
-                    key={t.id}
-                    onClick={() => onUpdateSettings({ ...readingSettings, theme: t.id as any })}
-                    className={`py-1.5 px-2 rounded-lg font-medium border text-center transition-colors shadow-xs ${
-                      readingSettings.theme === t.id
-                        ? 'bg-[#5B6B56] text-white border-[#5B6B56]'
-                        : 'bg-[#FDFCF9] border-[#DFD8CA] text-[#4A443F] hover:border-[#8C9A86]'
-                    }`}
-                  >
-                    {t.label}
-                  </button>
-                ))}
+          <div className="p-5 rounded-3xl bg-white border border-[#DFD8CA] shadow-xl space-y-4 text-xs text-[#4A443F]">
+            <div className="flex items-center justify-between border-b border-[#E8E2D6] pb-2.5">
+              <div className="flex items-center gap-2">
+                <Sliders className="w-4 h-4 text-[#5B6B56]" />
+                <h4 className="font-serif font-bold text-[#3A342F] text-sm">
+                  Story Aesthetics & Reading Preferences
+                </h4>
               </div>
-              <div className="pt-2">
-                <label className="text-xs font-semibold text-[#6E665E]">Palette</label>
-                <div className="flex gap-2 mt-1">
-                  {(['classic_paper', 'midnight_galaxy', 'forest_dream'] as const).map(p => (
-                    <button key={p}
-                      onClick={() => onUpdateSettings({...readingSettings, colorPalette: p})}
-                      className={`flex-1 py-1 text-xs rounded border ${readingSettings.colorPalette === p ? 'border-[#5B6B56] bg-[#5B6B56] text-white' : 'border-[#DFD8CA] bg-white'}`}>
-                      {p.replace('_', ' ')}
+              <button
+                onClick={() => setShowSettingsDrawer(false)}
+                className="p-1 rounded-lg text-[#78716A] hover:text-[#3A342F]"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+              {/* Color Palette Picker */}
+              <div className="space-y-2">
+                <label className="font-semibold text-[#5B6B56] uppercase tracking-wider text-[11px] block">
+                  Color Palettes
+                </label>
+                <div className="space-y-1.5">
+                  {[
+                    { id: 'classic_paper', label: 'Classic Paper', desc: 'Warm ivory & charcoal' },
+                    { id: 'midnight_galaxy', label: 'Midnight Galaxy', desc: 'Deep cosmic indigo & starlight' },
+                    { id: 'forest_dream', label: 'Forest Dream', desc: 'Lush moss green & sage' },
+                  ].map((p) => (
+                    <button
+                      key={p.id}
+                      onClick={() => onUpdateSettings({ ...readingSettings, colorPalette: p.id as any })}
+                      className={`w-full py-2 px-3 rounded-xl font-medium border text-left transition-all flex items-center justify-between shadow-xs ${
+                        readingSettings.colorPalette === p.id
+                          ? 'bg-[#5B6B56] text-white border-[#5B6B56]'
+                          : 'bg-[#FDFCF9] border-[#DFD8CA] text-[#4A443F] hover:border-[#8C9A86]'
+                      }`}
+                    >
+                      <div>
+                        <div className="font-bold">{p.label}</div>
+                        <div className={`text-[10px] ${readingSettings.colorPalette === p.id ? 'text-white/80' : 'text-[#78716A]'}`}>
+                          {p.desc}
+                        </div>
+                      </div>
+                      {readingSettings.colorPalette === p.id && <Check className="w-3.5 h-3.5 shrink-0" />}
                     </button>
                   ))}
                 </div>
               </div>
-            </div>
 
-            {/* Font Size */}
-            <div className="space-y-2">
-              <label className="font-semibold text-[#6E665E]">Font Size</label>
-              <div className="grid grid-cols-4 gap-1.5">
-                {(['sm', 'md', 'lg', 'xl'] as const).map((size) => (
-                  <button
-                    key={size}
-                    onClick={() => onUpdateSettings({ ...readingSettings, fontSize: size })}
-                    className={`py-1.5 rounded-lg font-medium border uppercase shadow-xs ${
-                      readingSettings.fontSize === size
-                        ? 'bg-[#5B6B56] text-white border-[#5B6B56]'
-                        : 'bg-[#FDFCF9] border-[#DFD8CA] text-[#4A443F] hover:border-[#8C9A86]'
-                    }`}
-                  >
-                    {size}
-                  </button>
-                ))}
+              {/* Font Style Picker */}
+              <div className="space-y-2">
+                <label className="font-semibold text-[#5B6B56] uppercase tracking-wider text-[11px] block">
+                  Font Typography Style
+                </label>
+                <div className="space-y-1.5">
+                  {[
+                    { id: 'serif', label: 'Classic Serif', desc: 'Editorial & literary' },
+                    { id: 'display', label: 'Playfair Display', desc: 'Elegantly expressive' },
+                    { id: 'sans', label: 'Outfit Modern Sans', desc: 'Clean, legible picturebook' },
+                  ].map((f) => (
+                    <button
+                      key={f.id}
+                      onClick={() => onUpdateSettings({ ...readingSettings, fontFamily: f.id as any })}
+                      className={`w-full py-2 px-3 rounded-xl font-medium border text-left transition-all flex items-center justify-between shadow-xs ${
+                        readingSettings.fontFamily === f.id
+                          ? 'bg-[#5B6B56] text-white border-[#5B6B56]'
+                          : 'bg-[#FDFCF9] border-[#DFD8CA] text-[#4A443F] hover:border-[#8C9A86]'
+                      }`}
+                    >
+                      <div>
+                        <div className="font-bold">{f.label}</div>
+                        <div className={`text-[10px] ${readingSettings.fontFamily === f.id ? 'text-white/80' : 'text-[#78716A]'}`}>
+                          {f.desc}
+                        </div>
+                      </div>
+                      {readingSettings.fontFamily === f.id && <Check className="w-3.5 h-3.5 shrink-0" />}
+                    </button>
+                  ))}
+                </div>
               </div>
-            </div>
 
-            {/* Speech Rate */}
-            <div className="space-y-2">
-              <div className="flex justify-between font-semibold text-[#6E665E]">
-                <span>Audio Narration Speed</span>
-                <span className="text-[#5B6B56] font-bold">{readingSettings.speechRate}x</span>
+              {/* Sizing & Audio Speed */}
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <label className="font-semibold text-[#5B6B56] uppercase tracking-wider text-[11px] block">
+                    Font Size
+                  </label>
+                  <div className="grid grid-cols-4 gap-1.5">
+                    {(['sm', 'md', 'lg', 'xl'] as const).map((size) => (
+                      <button
+                        key={size}
+                        onClick={() => onUpdateSettings({ ...readingSettings, fontSize: size })}
+                        className={`py-2 rounded-xl font-bold border uppercase shadow-xs transition-all ${
+                          readingSettings.fontSize === size
+                            ? 'bg-[#5B6B56] text-white border-[#5B6B56]'
+                            : 'bg-[#FDFCF9] border-[#DFD8CA] text-[#4A443F] hover:border-[#8C9A86]'
+                        }`}
+                      >
+                        {size}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <div className="flex justify-between font-semibold text-[#6E665E]">
+                    <span>Narration Speed</span>
+                    <span className="text-[#5B6B56] font-bold">{readingSettings.speechRate}x</span>
+                  </div>
+                  <input
+                    type="range"
+                    min="0.8"
+                    max="1.4"
+                    step="0.1"
+                    value={readingSettings.speechRate}
+                    onChange={(e) => onUpdateSettings({ ...readingSettings, speechRate: parseFloat(e.target.value) })}
+                    className="w-full accent-[#5B6B56] cursor-pointer"
+                  />
+                </div>
               </div>
-              <input
-                type="range"
-                min="0.8"
-                max="1.4"
-                step="0.1"
-                value={readingSettings.speechRate}
-                onChange={(e) => onUpdateSettings({ ...readingSettings, speechRate: parseFloat(e.target.value) })}
-                className="w-full accent-[#5B6B56] cursor-pointer"
-              />
             </div>
           </div>
         </div>
@@ -827,35 +1106,150 @@ export const StoryReader: React.FC<StoryReaderProps> = ({
           </motion.div>
         )}
 
+        {/* Translation Banner / Shimmer Indicator */}
+        {isTranslating && (
+          <div className="p-4 rounded-2xl bg-[#EAF0E8] border border-[#D0E0CC] text-[#2D4523] text-xs font-semibold flex items-center justify-center gap-3 shadow-xs animate-pulse">
+            <RefreshCw className="w-4 h-4 animate-spin text-[#5B6B56]" />
+            <span>Translating Chapter {currentChapter.chapterNumber} into {currentLangOption.nativeName} ({currentLangOption.name})...</span>
+          </div>
+        )}
+
+        {translationError && (
+          <div className="p-4 rounded-2xl bg-[#FAEDE8] border border-[#F2D0C4] text-[#933D22] text-xs flex items-center justify-between gap-3 shadow-xs">
+            <span>{translationError}</span>
+            <button
+              onClick={() => handleSelectLanguage(selectedLanguage)}
+              className="px-3 py-1 rounded-xl bg-[#933D22] text-white font-bold hover:bg-[#7A321B]"
+            >
+              Retry
+            </button>
+          </div>
+        )}
+
         {/* Story Prose Text Block */}
-        <motion.article
-          key={`text-${currentChapterIndex}`}
-          initial={{ opacity: 0, rotateY: -90 }}
-          animate={{ opacity: 1, rotateY: 0 }}
-          transition={{ duration: 0.6, type: 'spring' }}
-          className={`p-6 sm:p-10 rounded-3xl ${themeStyle.proseBg} border ${themeStyle.border} shadow-sm space-y-6 ${fontClass}`}
-        >
-          {currentChapter.content.split('\n\n').map((paragraph, pIdx) => {
-            if (!paragraph.trim()) return null;
-            return (
-              <p
-                key={pIdx}
-                className={`${textSizeClass} tracking-wide text-justify text-[#4A443F]`}
+        {selectedLanguage !== 'en' && isBilingualMode && activeTranslation ? (
+          /* Bilingual Side-by-Side Dual Column View */
+          <div className="space-y-4">
+            <div className="flex items-center justify-between px-2 text-xs font-bold uppercase tracking-wider text-[#78716A]">
+              <span className="flex items-center gap-1.5">
+                <span>🇬🇧</span>
+                <span>Original English</span>
+              </span>
+              <span className="flex items-center gap-1.5 text-[#5B6B56]">
+                <span>{currentLangOption.flag}</span>
+                <span>{currentLangOption.nativeName} ({currentLangOption.name})</span>
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {/* Left: Original English */}
+              <motion.article
+                key={`text-orig-${currentChapterIndex}`}
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className={`p-6 sm:p-8 rounded-3xl ${themeStyle.proseBg} border ${themeStyle.border} shadow-sm space-y-4 ${fontClass}`}
               >
-                {pIdx === 0 ? (
-                  <>
-                    <span className="float-left text-4xl sm:text-5xl font-bold font-serif leading-none pr-3 pt-1 text-[#5B6B56]">
-                      {paragraph.charAt(0)}
-                    </span>
-                    {paragraph.slice(1)}
-                  </>
-                ) : (
-                  paragraph
-                )}
-              </p>
-            );
-          })}
-        </motion.article>
+                <div className="border-b border-[#E8E2D6] pb-2 font-serif font-bold text-sm text-[#3A342F]">
+                  {currentChapter.title}
+                </div>
+                {currentChapter.content.split('\n\n').map((paragraph, pIdx) => {
+                  if (!paragraph.trim()) return null;
+                  return (
+                    <p key={pIdx} className={`${textSizeClass} tracking-wide text-justify text-[#4A443F]`}>
+                      {pIdx === 0 ? (
+                        <>
+                          <span className="float-left text-3xl font-bold font-serif leading-none pr-2 pt-1 text-[#5B6B56]">
+                            {paragraph.charAt(0)}
+                          </span>
+                          {paragraph.slice(1)}
+                        </>
+                      ) : (
+                        paragraph
+                      )}
+                    </p>
+                  );
+                })}
+              </motion.article>
+
+              {/* Right: Translated Target Language */}
+              <motion.article
+                key={`text-trans-${currentChapterIndex}-${selectedLanguage}`}
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className={`p-6 sm:p-8 rounded-3xl ${themeStyle.proseBg} border border-[#70826C]/40 shadow-sm space-y-4 ${fontClass} bg-[#FCFBF8]`}
+              >
+                <div className="border-b border-[#D0E0CC] pb-2 font-serif font-bold text-sm text-[#3B5436] flex items-center justify-between">
+                  <span>{activeTranslation.title}</span>
+                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-[#EAF0E8] text-[#3B5436]">
+                    {currentLangOption.name}
+                  </span>
+                </div>
+                {activeTranslation.content.split('\n\n').map((paragraph, pIdx) => {
+                  if (!paragraph.trim()) return null;
+                  return (
+                    <p key={pIdx} className={`${textSizeClass} tracking-wide text-justify text-[#3A342F]`}>
+                      {pIdx === 0 ? (
+                        <>
+                          <span className="float-left text-3xl font-bold font-serif leading-none pr-2 pt-1 text-[#3B5436]">
+                            {paragraph.charAt(0)}
+                          </span>
+                          {paragraph.slice(1)}
+                        </>
+                      ) : (
+                        paragraph
+                      )}
+                    </p>
+                  );
+                })}
+              </motion.article>
+            </div>
+          </div>
+        ) : (
+          /* Standard Single Prose Layout (Original or Translated) */
+          <motion.article
+            key={`text-${currentChapterIndex}-${selectedLanguage}`}
+            initial={{ opacity: 0, rotateY: -90 }}
+            animate={{ opacity: 1, rotateY: 0 }}
+            transition={{ duration: 0.6, type: 'spring' }}
+            className={`p-6 sm:p-10 rounded-3xl ${themeStyle.proseBg} border ${themeStyle.border} shadow-sm space-y-6 ${fontClass}`}
+          >
+            {selectedLanguage !== 'en' && activeTranslation && (
+              <div className="flex items-center justify-between pb-3 border-b border-[#E8E2D6] text-xs">
+                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#EAF0E8] text-[#3B5436] font-bold border border-[#D0E0CC]">
+                  <span>{currentLangOption.flag}</span>
+                  <span>Translated into {currentLangOption.nativeName} ({currentLangOption.name})</span>
+                </span>
+                <button
+                  onClick={() => setIsBilingualMode(true)}
+                  className="text-[#5B6B56] hover:underline text-[11px] font-semibold"
+                >
+                  Switch to Bilingual Side-by-Side
+                </button>
+              </div>
+            )}
+
+            {(activeTranslation?.content || currentChapter.content).split('\n\n').map((paragraph, pIdx) => {
+              if (!paragraph.trim()) return null;
+              return (
+                <p
+                  key={pIdx}
+                  className={`${textSizeClass} tracking-wide text-justify text-[#4A443F]`}
+                >
+                  {pIdx === 0 ? (
+                    <>
+                      <span className="float-left text-4xl sm:text-5xl font-bold font-serif leading-none pr-3 pt-1 text-[#5B6B56]">
+                        {paragraph.charAt(0)}
+                      </span>
+                      {paragraph.slice(1)}
+                    </>
+                  ) : (
+                    paragraph
+                  )}
+                </p>
+              );
+            })}
+          </motion.article>
+        )}
 
         {/* Interactive Non-Repetitive Choice Selector / Branching */}
         {currentChapterIndex === book.chapters.length - 1 && !book.isCompleted && (

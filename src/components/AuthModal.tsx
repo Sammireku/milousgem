@@ -337,13 +337,6 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                           className="hidden"
                         />
                       </div>
-                      <input
-                        type="url"
-                        value={avatarInput}
-                        onChange={(e) => setAvatarInput(e.target.value)}
-                        className="w-full px-3 py-1.5 rounded-xl bg-white border border-[#DCD5C9] text-xs text-[#3A342F] focus:outline-none focus:border-[#5B6B56]"
-                        placeholder="Or paste image URL"
-                      />
                     </div>
                   </div>
                 </div>

@@ -1,5 +1,6 @@
 import express from 'express';
 import path from 'path';
+import fs from 'fs';
 import { createServer as createViteServer } from 'vite';
 import { GoogleGenAI, Type } from '@google/genai';
 
@@ -473,6 +474,72 @@ app.get('/api/health', (req, res) => {
   });
 });
 
+// Helper: Resolve image input (data URL, raw base64, local file path, or external URL) to base64
+async function resolveImageBase64(input: string, defaultMime = 'image/jpeg'): Promise<{ cleanBase64: string; mimeType: string }> {
+  if (!input || typeof input !== 'string') {
+    throw new Error('Image input must be a non-empty string');
+  }
+
+  // 1. Data URL
+  const dataUrlMatch = input.match(/^data:([a-zA-Z0-9/+.-]+);base64,(.+)$/);
+  if (dataUrlMatch) {
+    return {
+      mimeType: dataUrlMatch[1],
+      cleanBase64: dataUrlMatch[2].trim(),
+    };
+  }
+
+  // 2. External HTTP/HTTPS URL
+  if (input.startsWith('http://') || input.startsWith('https://')) {
+    try {
+      const fetchRes = await fetch(input);
+      if (fetchRes.ok) {
+        const contentType = fetchRes.headers.get('content-type') || defaultMime;
+        const arrayBuffer = await fetchRes.arrayBuffer();
+        return {
+          mimeType: contentType.split(';')[0],
+          cleanBase64: Buffer.from(arrayBuffer).toString('base64'),
+        };
+      }
+    } catch (e) {
+      console.warn('Could not fetch external image URL, checking fallback:', e);
+    }
+  }
+
+  // 3. Local relative or absolute path (e.g. /presets/preset_maya.jpg)
+  if (input.startsWith('/') || input.startsWith('./') || input.includes('presets') || input.includes('.jpg') || input.includes('.png') || input.includes('.jpeg')) {
+    const cleanRelative = input.replace(/^\/+/, '');
+    const candidatePaths = [
+      path.join(process.cwd(), 'public', cleanRelative),
+      path.join(process.cwd(), cleanRelative),
+      path.join(process.cwd(), 'src', cleanRelative),
+      path.join(process.cwd(), 'src/assets/images', path.basename(input)),
+    ];
+
+    for (const cPath of candidatePaths) {
+      try {
+        if (fs.existsSync(cPath)) {
+          const fileBuf = fs.readFileSync(cPath);
+          const ext = path.extname(cPath).toLowerCase();
+          const mime = ext === '.png' ? 'image/png' : ext === '.webp' ? 'image/webp' : 'image/jpeg';
+          return {
+            mimeType: mime,
+            cleanBase64: fileBuf.toString('base64'),
+          };
+        }
+      } catch (e) {
+        // continue
+      }
+    }
+  }
+
+  // 4. Raw base64 string
+  return {
+    mimeType: defaultMime,
+    cleanBase64: input.replace(/^data:image\/[a-zA-Z+]+;base64,/, '').trim(),
+  };
+}
+
 // Endpoint: Analyze uploaded or camera photo into a deep, non-repetitive character sheet
 app.post('/api/character/analyze-image', async (req, res) => {
   try {
@@ -482,7 +549,7 @@ app.post('/api/character/analyze-image', async (req, res) => {
       return res.status(400).json({ error: 'imageBase64 is required' });
     }
 
-    const cleanBase64 = imageBase64.replace(/^data:image\/[a-zA-Z+]+;base64,/, '');
+    const { cleanBase64, mimeType: resolvedMime } = await resolveImageBase64(imageBase64, mimeType);
 
     const prompt = `You are a master character designer and novelist for MilousGem, an award-winning character-driven storytelling system.
 Analyze this photo to identify one or more people.
@@ -505,7 +572,7 @@ Generate a JSON object where 'characters' is an array of character objects match
             {
               inlineData: {
                 data: cleanBase64,
-                mimeType: mimeType,
+                mimeType: resolvedMime,
               },
             },
             { text: prompt },
@@ -516,67 +583,84 @@ Generate a JSON object where 'characters' is an array of character objects match
           responseSchema: {
             type: Type.OBJECT,
             properties: {
-              name: { type: Type.STRING, description: 'Memorable character name' },
-              titleOrRole: { type: Type.STRING, description: 'Evocative title, e.g. "The Glass-Clock Alchemist"' },
-              role: {
-                type: Type.STRING,
-                enum: ['protagonist', 'antagonist', 'companion', 'mentor', 'deceiver', 'wildcard'],
-                description: 'Narrative archetype',
-              },
-              speciesOrArchetype: { type: Type.STRING, description: 'e.g. Cybernetic Courier, Celestial Cartographer, Solarpunk Botanist' },
-              appearanceTags: {
+              characters: {
                 type: Type.ARRAY,
-                items: { type: Type.STRING },
-                description: '4-6 specific visual traits matching the image (hair, eyes, face, garments, markings)',
-              },
-              artisticStylePrompt: {
-                type: Type.STRING,
-                description: 'A detailed visual consistency description snippet for generating illustrations of this exact character',
-              },
-              keyColors: {
-                type: Type.ARRAY,
-                items: { type: Type.STRING },
-                description: '3 primary hex color codes representing character aesthetic',
-              },
-              backstory: { type: Type.STRING, description: '3-4 sentences of poignant, origin lore' },
-              personality: {
-                type: Type.ARRAY,
-                items: { type: Type.STRING },
-                description: '3 distinct psychological traits with subtle contradictions',
-              },
-              flawOrSecret: {
-                type: Type.STRING,
-                description: 'A powerful internal conflict, hidden debt, curse, or secret that prevents repetitive, predictable stories',
-              },
-              signatureItem: { type: Type.STRING, description: 'A unique physical artifact or token they carry' },
-              speechPattern: { type: Type.STRING, description: 'How they speak: vocabulary, tempo, recurring metaphors or quirks' },
-              genreAffinities: {
-                type: Type.ARRAY,
-                items: { type: Type.STRING },
-                description: 'Best fitting genres like fantasy, cyberpunk, cozy_mystery, steampunk, noir, solarpunk, cosmic_horror, fairytale',
+                description: 'Array of detected characters from the photo transformed into 3D Pixar animated personas',
+                items: {
+                  type: Type.OBJECT,
+                  properties: {
+                    name: { type: Type.STRING, description: 'Memorable character name' },
+                    gender: {
+                      type: Type.STRING,
+                      enum: ['girl', 'boy', 'woman', 'man', 'non_binary', 'other'],
+                      description: 'Gender identity of the character',
+                    },
+                    titleOrRole: { type: Type.STRING, description: 'Evocative title, e.g. "The Playful Explorer"' },
+                    role: {
+                      type: Type.STRING,
+                      enum: ['protagonist', 'antagonist', 'companion', 'mentor', 'deceiver', 'wildcard'],
+                      description: 'Narrative archetype',
+                    },
+                    speciesOrArchetype: { type: Type.STRING, description: 'e.g. Pixar 3D Little Explorer, Woodland Alchemist' },
+                    appearanceTags: {
+                      type: Type.ARRAY,
+                      items: { type: Type.STRING },
+                      description: '4-6 specific visual traits matching the image (hair, eyes, face, garments, markings)',
+                    },
+                    artisticStylePrompt: {
+                      type: Type.STRING,
+                      description: 'A detailed visual consistency description snippet for generating 3D Pixar-style illustrations of this exact character',
+                    },
+                    keyColors: {
+                      type: Type.ARRAY,
+                      items: { type: Type.STRING },
+                      description: '3 primary hex color codes representing character aesthetic',
+                    },
+                    backstory: { type: Type.STRING, description: '3-4 sentences of poignant, origin lore' },
+                    personality: {
+                      type: Type.ARRAY,
+                      items: { type: Type.STRING },
+                      description: '3 distinct psychological traits with subtle contradictions',
+                    },
+                    flawOrSecret: {
+                      type: Type.STRING,
+                      description: 'A powerful internal conflict, hidden debt, curse, or secret that prevents repetitive, predictable stories',
+                    },
+                    signatureItem: { type: Type.STRING, description: 'A unique physical artifact or token they carry' },
+                    speechPattern: { type: Type.STRING, description: 'How they speak: vocabulary, tempo, recurring metaphors or quirks' },
+                    genreAffinities: {
+                      type: Type.ARRAY,
+                      items: { type: Type.STRING },
+                      description: 'Best fitting genres like fantasy, cyberpunk, cozy_mystery, steampunk, noir, solarpunk, cosmic_horror, fairytale, magical_animals, kid_detective',
+                    },
+                  },
+                  required: [
+                    'name',
+                    'gender',
+                    'titleOrRole',
+                    'role',
+                    'speciesOrArchetype',
+                    'appearanceTags',
+                    'artisticStylePrompt',
+                    'keyColors',
+                    'backstory',
+                    'personality',
+                    'flawOrSecret',
+                    'signatureItem',
+                    'speechPattern',
+                    'genreAffinities',
+                  ],
+                },
               },
             },
-            required: [
-              'name',
-              'titleOrRole',
-              'role',
-              'speciesOrArchetype',
-              'appearanceTags',
-              'artisticStylePrompt',
-              'keyColors',
-              'backstory',
-              'personality',
-              'flawOrSecret',
-              'signatureItem',
-              'speechPattern',
-              'genreAffinities',
-            ],
+            required: ['characters'],
           },
         },
       });
 
       const parsed = extractJSON(response.text || '{}');
-      return res.json({ success: true, characters: parsed.characters, provider: 'gemini' });
+      const charList = Array.isArray(parsed.characters) ? parsed.characters : parsed.name ? [parsed] : [];
+      return res.json({ success: true, characters: charList, character: charList[0], provider: 'gemini' });
     } catch (geminiErr: any) {
       console.warn('Gemini vision analysis note, trying fallback text analysis:', geminiErr?.message);
       // Fallback to Groq if key is present
@@ -651,11 +735,20 @@ app.post('/api/story/generate-chapter', async (req, res) => {
 
     let audienceInstructions = '';
     if (isChildrenStory) {
+      const ageDetails =
+        targetAudience === 'kids_preschool'
+          ? 'Ages 2-4 (Toddlers & Preschool): Use very gentle, warm, rhythmic and soothing vocabulary, joyful repetitive refrains, friendly animal sounds, cozy bedtime vibes, and simple delightful concepts.'
+          : targetAudience === 'kids_early'
+          ? 'Ages 5-7 (Early Readers): Fun picturebook cadence, engaging read-aloud dialogue, wonder-filled discoveries, colorful curiosity, and heartwarming teamwork.'
+          : targetAudience === 'kids_middle'
+          ? 'Ages 8-10 (Independent Readers): Clever mysteries, exciting adventures, active problem-solving, witty banter, moral courage, and imaginative twists.'
+          : 'Ages 11-13 (Middle Grade Pre-Teens): Rich worldbuilding, intriguing mysteries, multi-layered friendships, courage, and clever dilemmas.';
+
       audienceInstructions = `
 CHILDREN'S STORYTELLING RULES:
-- Target Age: ${targetAudience === 'kids_early' ? 'Ages 3-5 (Preschool): Use joyful, rhythmic, simple words, sensory wonder, and cuddly/warm descriptions.' : targetAudience === 'kids_middle' ? 'Ages 6-9 (Early Readers): Fun chapter book style, curiosity, clever teamwork, and uplifting humor.' : 'Ages 10-12 (Middle Grade): Brave adventures, light mystery, friendship, and positive problem-solving.'}
-${moralLesson ? `- Core Moral Value to naturally weave into this chapter: "${moralLesson}". Show this through character actions, kindness, or teamwork.` : ''}
-- Safety: Strictly wholesome, zero graphic violence, zero profanity, uplifting, encouraging, and bedtime-appropriate.
+- Target Age: ${ageDetails}
+${moralLesson ? `- Core Moral Value to naturally weave into this chapter: "${moralLesson}". Show this through character actions, empathy, sharing, or collaborative teamwork.` : ''}
+- Safety: Strictly wholesome, zero graphic violence, zero profanity, uplifting, encouraging, and emotionally comforting.
 - Choices: Provide cheerful, curious, and creative paths for young readers.
 `;
     }
@@ -798,6 +891,294 @@ Provide:
   } catch (error: any) {
     console.error('Error in /api/story/generate-chapter:', error);
     return res.status(500).json({ error: error.message || 'Failed to generate chapter' });
+  }
+});
+
+// Endpoint: Generate Full Complete Book (All Chapters Generated at Once)
+app.post('/api/story/generate-full-book', async (req, res) => {
+  try {
+    const {
+      genre = 'fantasy',
+      artStyle = 'watercolor_storybook',
+      tone = 'epic_heroic',
+      cast = [],
+      bookTitle = 'The Chronicle of Destiny',
+      synopsis = 'A journey across the threshold of the unknown.',
+      totalTargetChapters = 10,
+      targetAudience = 'all_ages',
+      moralLesson = '',
+      isKidsMode = false,
+      entropyLevel = 0.75,
+    } = req.body;
+
+    const pageCount = isKidsMode
+      ? Math.min(Math.max(totalTargetChapters || 10, 8), 12)
+      : Math.min(Math.max(totalTargetChapters || 8, 3), 16);
+
+    const isChildrenStory = isKidsMode || targetAudience === 'kids_early' || targetAudience === 'kids_middle' || targetAudience === 'young_reader' || targetAudience === 'kids_preschool';
+
+    const castSummary = cast
+      .map(
+        (c: any) =>
+          `Character: ${c.name} (${c.titleOrRole}, role: ${c.role})\n- Species/Archetype: ${c.visualProfile?.speciesOrArchetype || c.speciesOrArchetype}\n- Personality: ${Array.isArray(c.personality) ? c.personality.join(', ') : c.personality}\n- Flaw / Hidden Tension: ${c.flawOrSecret}\n- Signature Item: ${c.signatureItem}\n- Visual Prompt Reference: ${c.visualProfile?.artisticStylePrompt || ''}`
+      )
+      .join('\n\n');
+
+    let audienceInstructions = '';
+    if (isChildrenStory) {
+      const ageDetails =
+        targetAudience === 'kids_preschool'
+          ? 'Ages 2-4 (Toddlers & Preschool): Gentle, rhythmic, soothing vocabulary, repetitive refrains, and cozy bedtime themes.'
+          : targetAudience === 'kids_early'
+          ? 'Ages 5-7 (Early Readers): Picturebook cadence, engaging dialogue, wonder-filled discoveries, and heartwarming teamwork.'
+          : targetAudience === 'kids_middle'
+          ? 'Ages 8-10 (Independent Readers): Clever adventures, problem-solving, witty banter, moral courage, and imaginative twists.'
+          : 'Ages 11-13 (Middle Grade Pre-Teens): Rich worldbuilding, intriguing mysteries, multi-layered friendships, and clever dilemmas.';
+
+      audienceInstructions = `
+CHILDREN'S STORYTELLING RULES:
+- Target Age: ${ageDetails}
+${moralLesson ? `- Core Moral Value to weave through the arc: "${moralLesson}". Show this through character actions and empathy.` : ''}
+- Safety: Strictly wholesome, zero graphic violence, zero profanity, uplifting and comforting.
+`;
+    }
+
+    const systemInstruction = `You are the lead narrative architect of MilousGem. Generate a COMPLETE ${pageCount}-page illustrated storybook with engaging prose for each page/chapter.
+Every page must have:
+- chapterNumber (1 to ${pageCount})
+- title (evocative page title)
+- summary (1 sentence scene overview)
+- content (rich, engaging story prose for this page, with dialog and vivid sensory descriptions)
+- illustrationPrompt (detailed prompt to generate a 3D Pixar-style children's book scene illustration showing the characters in soft magical lighting)
+- choices (2 interesting story paths, though the narrative continues smoothly)
+`;
+
+    try {
+      const ai = getGeminiClient();
+      const response = await ai.models.generateContent({
+        model: 'gemini-3.7-flash',
+        contents: [
+          {
+            text: `Create a complete ${pageCount}-page storybook titled "${bookTitle}".
+Synopsis: ${synopsis}
+Genre: ${genre}
+Tone: ${tone}
+Art Style: ${artStyle}
+${audienceInstructions}
+Cast Profiles:
+${castSummary || 'Protagonist exploring a magical world'}
+Return an array of ${pageCount} chapters representing the complete story arc from beginning to climax and joyful resolution.`,
+          },
+        ],
+        config: {
+          systemInstruction,
+          responseMimeType: 'application/json',
+          responseSchema: {
+            type: Type.OBJECT,
+            properties: {
+              chapters: {
+                type: Type.ARRAY,
+                description: `All ${pageCount} chapters of the complete story`,
+                items: {
+                  type: Type.OBJECT,
+                  properties: {
+                    chapterNumber: { type: Type.INTEGER },
+                    title: { type: Type.STRING },
+                    summary: { type: Type.STRING },
+                    content: { type: Type.STRING },
+                    illustrationPrompt: { type: Type.STRING },
+                  },
+                  required: ['chapterNumber', 'title', 'summary', 'content', 'illustrationPrompt'],
+                },
+              },
+            },
+            required: ['chapters'],
+          },
+        },
+      });
+
+      const parsed = extractJSON(response.text || '{}');
+      const chapters = Array.isArray(parsed.chapters) && parsed.chapters.length > 0
+        ? parsed.chapters
+        : [];
+
+      if (chapters.length > 0) {
+        return res.json({ success: true, chapters, provider: 'gemini' });
+      }
+    } catch (llmErr) {
+      console.warn('Full book LLM generation note, synthesizing chapters:', llmErr);
+    }
+
+    // Procedural fallback for full book
+    const proceduralChapters = Array.from({ length: pageCount }).map((_, idx) => {
+      const chNum = idx + 1;
+      return {
+        chapterNumber: chNum,
+        title: `Chapter ${chNum}: ${chNum === 1 ? 'The Beginning of the Journey' : chNum === pageCount ? 'The Warm Farewell & Return' : 'A Wonderful Discovery Along the Trail'}`,
+        summary: `Page ${chNum} of the journey through the ${genre} realm.`,
+        content: `As chapter ${chNum} unfolded, ${cast[0]?.name || 'our little hero'} marveled at the shimmering wonders around every corner. With gentle courage and kind friends, every step brought warmth and excitement into the adventure.`,
+        illustrationPrompt: `3D animated Pixar-style children's book illustration, ${cast[0]?.visualProfile?.artisticStylePrompt || cast[0]?.name || 'hero'}, magical whimsical story scene in chapter ${chNum}, soft glowing lighting`,
+      };
+    });
+
+    return res.json({ success: true, chapters: proceduralChapters, provider: 'procedural-full-book' });
+  } catch (error: any) {
+    console.error('Error in /api/story/generate-full-book:', error);
+    return res.status(500).json({ error: error.message || 'Failed to generate full book' });
+  }
+});
+
+// Endpoint: Story Translation into multiple languages (Dutch, Spanish, French, German, Japanese, Mandarin, Italian, etc.)
+app.post('/api/story/translate', async (req, res) => {
+  try {
+    const {
+      title = '',
+      summary = '',
+      content = '',
+      targetLanguage = 'Dutch',
+      tone = 'whimsical',
+      isKidsMode = false,
+    } = req.body;
+
+    if (!content) {
+      return res.status(400).json({ error: 'Content is required for translation' });
+    }
+
+    const systemInstruction = `You are a master literary translator specializing in classic and contemporary illustrated storybooks and children's literature.
+Translate the provided story title, summary, and prose content with poetic beauty, authentic warmth, and narrative elegance into ${targetLanguage}.
+Special focus for ${targetLanguage}:
+- If target language is Dutch (Nederlands), use natural idiomatic Dutch suitable for storytelling with authentic phrasing (e.g. "Er was eens...", vivid adjectives, cozy Dutch warmth).
+- Preserve the story's emotional cadence, character voices, and humorous or dramatic dialogue.
+- Preserve proper names of characters unless standard translation rules apply.
+- Ensure the tone matches: "${tone}"${isKidsMode ? ' (warm, gentle, children picturebook cadence)' : ''}.
+
+Return a JSON object matching the requested schema.`;
+
+    try {
+      const ai = getGeminiClient();
+      const response = await ai.models.generateContent({
+        model: 'gemini-3.7-flash',
+        contents: `Translate the following story into ${targetLanguage}:\n\nTitle: "${title}"\nSummary: "${summary}"\n\nStory Prose:\n${content}`,
+        config: {
+          systemInstruction,
+          responseMimeType: 'application/json',
+          responseSchema: {
+            type: Type.OBJECT,
+            properties: {
+              translatedTitle: { type: Type.STRING, description: 'The translated chapter/story title' },
+              translatedSummary: { type: Type.STRING, description: 'The translated summary' },
+              translatedContent: { type: Type.STRING, description: 'The translated prose paragraphs' },
+              targetLanguage: { type: Type.STRING },
+            },
+            required: ['translatedTitle', 'translatedContent', 'targetLanguage'],
+          },
+        },
+      });
+
+      const parsed = extractJSON(response.text || '{}');
+      return res.json({
+        success: true,
+        translatedTitle: parsed.translatedTitle || title,
+        translatedSummary: parsed.translatedSummary || summary,
+        translatedContent: parsed.translatedContent || content,
+        targetLanguage,
+        provider: 'gemini',
+      });
+    } catch (geminiErr: any) {
+      console.warn('Gemini translation fallback note:', geminiErr?.message);
+
+      if (process.env.GROQ_API_KEY) {
+        try {
+          const groqText = await callGroqFallback([
+            { role: 'system', content: `${systemInstruction}\nReply strictly with a JSON object containing: translatedTitle, translatedSummary, translatedContent, targetLanguage.` },
+            { role: 'user', content: `Translate into ${targetLanguage}:\nTitle: ${title}\nContent:\n${content}` },
+          ], true);
+          const parsed = extractJSON(groqText);
+          return res.json({
+            success: true,
+            translatedTitle: parsed.translatedTitle || title,
+            translatedSummary: parsed.translatedSummary || summary,
+            translatedContent: parsed.translatedContent || content,
+            targetLanguage,
+            provider: 'groq',
+          });
+        } catch (groqErr) {}
+      }
+
+      return res.json({
+        success: true,
+        translatedTitle: title,
+        translatedSummary: summary,
+        translatedContent: content,
+        targetLanguage,
+        provider: 'original-fallback',
+      });
+    }
+  } catch (error: any) {
+    console.error('Error in /api/story/translate:', error);
+    return res.status(500).json({ error: error.message || 'Failed to translate story' });
+  }
+});
+
+// Endpoint: Generate / Refine Rich Story Summary & Character Dossier Blurb
+app.post('/api/story/generate-blurb', async (req, res) => {
+  try {
+    const {
+      title,
+      synopsis,
+      genre,
+      tone,
+      cast = [],
+      targetAudience = 'all_ages',
+      moralLesson = '',
+      chaptersSummary = '',
+    } = req.body;
+
+    const systemInstruction = `You are an editorial story curator for MilousGem. Generate an enticing, high-concept Story Summary blurb (3-4 sentences), highlighting the central hook, key character dynamics, and moral heart of this book to help readers quickly identify their favorite stories in their library. Also output 3 thematic key tags and a 1-sentence character roster teaser. Return a JSON object.`;
+
+    const userPrompt = `Book Title: "${title}"
+Genre: ${genre}
+Tone: ${tone}
+Target Audience: ${targetAudience}
+Moral Lesson: ${moralLesson}
+Cast Members: ${cast.map((c: any) => `${c.name} (${c.titleOrRole || c.role})`).join(', ')}
+Synopsis & History: ${synopsis} ${chaptersSummary}`;
+
+    try {
+      const ai = getGeminiClient();
+      const response = await ai.models.generateContent({
+        model: 'gemini-3.7-flash',
+        contents: userPrompt,
+        config: {
+          systemInstruction,
+          responseMimeType: 'application/json',
+          responseSchema: {
+            type: Type.OBJECT,
+            properties: {
+              blurb: { type: Type.STRING, description: 'Compelling 3-4 sentence editorial book blurb' },
+              castTeaser: { type: Type.STRING, description: '1-sentence teaser of character dynamics' },
+              thematicTags: { type: Type.ARRAY, items: { type: Type.STRING } },
+              recommendedReaderAge: { type: Type.STRING },
+            },
+            required: ['blurb', 'castTeaser', 'thematicTags'],
+          },
+        },
+      });
+
+      const parsed = extractJSON(response.text || '{}');
+      return res.json({ success: true, ...parsed, provider: 'gemini' });
+    } catch (e: any) {
+      return res.json({
+        success: true,
+        blurb: synopsis || `An enchanting ${genre} chronicle starring ${cast.map((c: any) => c.name).join(' and ')}.`,
+        castTeaser: `Featuring ${cast.map((c: any) => c.name).join(', ')} navigating wonder and discovery.`,
+        thematicTags: [genre, tone, 'Adventure'],
+        recommendedReaderAge: targetAudience === 'kids_early' ? 'Ages 5-7' : 'All Ages',
+        provider: 'fallback',
+      });
+    }
+  } catch (error: any) {
+    return res.status(500).json({ error: error.message || 'Failed to generate blurb' });
   }
 });
 

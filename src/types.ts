@@ -43,6 +43,8 @@ export interface UserAccount {
 
 export type CharacterRole = 'protagonist' | 'antagonist' | 'companion' | 'mentor' | 'deceiver' | 'wildcard';
 
+export type CharacterGender = 'girl' | 'boy' | 'woman' | 'man' | 'non_binary' | 'other';
+
 export interface CharacterVisualProfile {
   photoUrl: string; // Base64 data URL or preset URL
   appearanceTags: string[]; // e.g. ["silver bob hair", "amber cybernetic eye", "trenchcoat"]
@@ -57,6 +59,7 @@ export interface Character {
   name: string;
   titleOrRole: string; // e.g. "The Reluctant Timekeeper", "Shadow Courier"
   role: CharacterRole;
+  gender?: CharacterGender;
   backstory: string;
   personality: string[];
   flawOrSecret: string; // Crucial for anti-repetitive, dramatic tension
@@ -67,7 +70,7 @@ export interface Character {
   createdAt: number;
 }
 
-export type TargetAudience = 'kids_early' | 'kids_middle' | 'young_reader' | 'all_ages' | 'general_ya';
+export type TargetAudience = 'kids_preschool' | 'kids_early' | 'kids_middle' | 'young_reader' | 'all_ages' | 'general_ya';
 
 export type StoryGenre =
   | 'fantasy'

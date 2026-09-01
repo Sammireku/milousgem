@@ -16,6 +16,7 @@ class StoryNarrationManager {
       rate?: number;
       pitch?: number;
       voiceName?: string;
+      lang?: string;
       onBoundary?: (charIndex: number) => void;
       onEnd?: () => void;
       onError?: (err: any) => void;
@@ -33,19 +34,27 @@ class StoryNarrationManager {
     utterance.rate = options.rate ?? 1.0;
     utterance.pitch = options.pitch ?? 1.0;
 
-    // Pick best natural sounding English voice
+    const targetLang = options.lang || 'en-US';
+    utterance.lang = targetLang;
+
+    // Pick best natural sounding voice for requested language
     const voices = this.synth.getVoices();
     if (voices.length > 0) {
+      const langPrefix = targetLang.split('-')[0].toLowerCase();
       let voice = voices.find(
         (v) =>
-          v.lang.startsWith('en') &&
+          v.lang.toLowerCase().startsWith(langPrefix) &&
           (v.name.includes('Natural') ||
             v.name.includes('Google') ||
-            v.name.includes('Daniel') ||
-            v.name.includes('Samantha') ||
-            v.name.includes('Serena') ||
-            v.name.includes('Premium'))
+            v.name.includes('Premium') ||
+            v.name.includes('Clara') ||
+            v.name.includes('Ruben') ||
+            v.name.includes('Lotte') ||
+            v.name.includes('Laura'))
       );
+      if (!voice) {
+        voice = voices.find((v) => v.lang.toLowerCase().startsWith(langPrefix));
+      }
       if (!voice) {
         voice = voices.find((v) => v.lang.startsWith('en')) || voices[0];
       }
