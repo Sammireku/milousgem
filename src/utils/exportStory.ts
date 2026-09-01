@@ -503,6 +503,348 @@ export function exportStoryToText(book: StoryBook): void {
 }
 
 /**
+ * Print Storybook to PDF or printer with a high-fidelity printable layout,
+ * complete with chapter headers, cover page, and character roster visuals.
+ */
+export function printStoryToPDF(book: StoryBook): void {
+  const printFrame = document.createElement('iframe');
+  printFrame.style.position = 'fixed';
+  printFrame.style.right = '0';
+  printFrame.style.bottom = '0';
+  printFrame.style.width = '0';
+  printFrame.style.height = '0';
+  printFrame.style.border = '0';
+  document.body.appendChild(printFrame);
+
+  const doc = printFrame.contentWindow?.document;
+  if (!doc) {
+    window.print();
+    return;
+  }
+
+  const charactersHtml = (book.cast || [])
+    .map(
+      (c) => `
+    <div class="character-card">
+      ${
+        c.visualProfile?.photoUrl
+          ? `<img src="${c.visualProfile.photoUrl}" alt="${escapeXml(c.name)}" class="char-avatar" />`
+          : ''
+      }
+      <div class="char-info">
+        <h4 class="char-name">${escapeXml(c.name)}</h4>
+        <div class="char-role">${escapeXml(c.titleOrRole || c.role)}</div>
+        <div class="char-meta"><strong>Token:</strong> ${escapeXml(c.signatureItem || 'Key token')}</div>
+        <div class="char-desc">${escapeXml(c.backstory || '')}</div>
+      </div>
+    </div>
+  `
+    )
+    .join('');
+
+  const chaptersHtml = book.chapters
+    .map((chap) => {
+      const paragraphs = chap.content
+        .split('\n\n')
+        .map((p) => `<p>${escapeXml(p)}</p>`)
+        .join('');
+
+      let choiceHtml = '';
+      if (chap.chosenChoiceId && chap.choices) {
+        const chosen = chap.choices.find((c) => c.id === chap.chosenChoiceId);
+        if (chosen) {
+          choiceHtml = `
+            <div class="chosen-path">
+              <span class="path-label">Chosen Path:</span>
+              <strong>${escapeXml(chosen.label)}</strong>
+              <div class="path-desc">${escapeXml(chosen.actionDescription)}</div>
+            </div>
+          `;
+        }
+      }
+
+      return `
+        <section class="chapter-section">
+          <div class="chapter-header">
+            <span class="chapter-number">CHAPTER ${chap.chapterNumber}</span>
+            <h2 class="chapter-title">${escapeXml(chap.title)}</h2>
+          </div>
+          ${
+            chap.imageUrl
+              ? `<div class="chapter-img-wrap"><img src="${chap.imageUrl}" alt="${escapeXml(chap.title)}" class="chapter-img" /></div>`
+              : ''
+          }
+          <div class="chapter-body">
+            ${paragraphs}
+          </div>
+          ${choiceHtml}
+        </section>
+      `;
+    })
+    .join('');
+
+  const html = `
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <title>${escapeXml(book.title)} - Print Edition</title>
+        <style>
+          @page {
+            size: A4 portrait;
+            margin: 18mm 16mm;
+          }
+          * {
+            box-sizing: border-box;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+          }
+          body {
+            font-family: "Georgia", "Times New Roman", serif;
+            color: #2D2723;
+            background: #ffffff;
+            line-height: 1.6;
+            margin: 0;
+            padding: 0;
+            font-size: 11pt;
+          }
+          .cover-page {
+            page-break-after: always;
+            break-after: page;
+            min-height: 90vh;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            border: 2px double #D5CDBD;
+            padding: 24px;
+            border-radius: 8px;
+          }
+          .cover-badge {
+            display: inline-block;
+            background: #EAF0E8;
+            color: #385032;
+            font-family: sans-serif;
+            font-size: 9pt;
+            font-weight: bold;
+            padding: 4px 10px;
+            border-radius: 4px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 12px;
+          }
+          .cover-title {
+            font-family: "Palatino", "Georgia", serif;
+            font-size: 26pt;
+            font-weight: bold;
+            color: #241E1A;
+            margin: 8px 0 12px 0;
+            line-height: 1.2;
+          }
+          .cover-synopsis {
+            font-style: italic;
+            color: #5E564F;
+            font-size: 12pt;
+            margin-bottom: 20px;
+            line-height: 1.5;
+          }
+          .cover-image {
+            width: 100%;
+            max-height: 280px;
+            object-fit: cover;
+            border-radius: 6px;
+            margin-bottom: 20px;
+          }
+          .cast-section {
+            margin-top: 16px;
+          }
+          .cast-title {
+            font-family: sans-serif;
+            font-size: 10pt;
+            font-weight: bold;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: #5B6B56;
+            margin-bottom: 10px;
+            border-bottom: 1px solid #E8E2D6;
+            padding-bottom: 4px;
+          }
+          .cast-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 12px;
+          }
+          .character-card {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            background: #F9F7F2;
+            border: 1px solid #E8E2D6;
+            border-radius: 6px;
+            padding: 8px;
+          }
+          .char-avatar {
+            width: 50px;
+            height: 50px;
+            border-radius: 6px;
+            object-fit: cover;
+            flex-shrink: 0;
+          }
+          .char-name {
+            font-family: sans-serif;
+            font-size: 10pt;
+            font-weight: bold;
+            margin: 0 0 2px 0;
+            color: #2D2723;
+          }
+          .char-role {
+            font-size: 8.5pt;
+            color: #5B6B56;
+            font-weight: 600;
+          }
+          .char-meta {
+            font-size: 8pt;
+            color: #78716A;
+          }
+          .char-desc {
+            font-size: 7.5pt;
+            color: #78716A;
+            margin-top: 2px;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+          }
+          .cover-footer {
+            margin-top: 24px;
+            font-family: sans-serif;
+            font-size: 8pt;
+            color: #8C827A;
+            border-top: 1px solid #E8E2D6;
+            padding-top: 10px;
+            display: flex;
+            justify-content: space-between;
+          }
+          .chapter-section {
+            page-break-before: always;
+            break-before: page;
+            margin-bottom: 30px;
+          }
+          .chapter-header {
+            text-align: center;
+            margin-bottom: 16px;
+            padding-bottom: 12px;
+            border-bottom: 1px solid #E8E2D6;
+          }
+          .chapter-number {
+            font-family: sans-serif;
+            font-size: 8.5pt;
+            font-weight: bold;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            color: #5B6B56;
+            display: block;
+            margin-bottom: 4px;
+          }
+          .chapter-title {
+            font-family: "Palatino", "Georgia", serif;
+            font-size: 18pt;
+            color: #241E1A;
+            margin: 0;
+          }
+          .chapter-img-wrap {
+            text-align: center;
+            margin-bottom: 18px;
+          }
+          .chapter-img {
+            max-width: 100%;
+            max-height: 260px;
+            border-radius: 6px;
+            object-fit: cover;
+          }
+          .chapter-body p {
+            text-indent: 1.5em;
+            margin: 0 0 10px 0;
+            line-height: 1.65;
+            text-align: justify;
+          }
+          .chapter-body p:first-of-type {
+            text-indent: 0;
+          }
+          .chosen-path {
+            background: #F5EFEB;
+            border-left: 3px solid #B45F3C;
+            padding: 8px 12px;
+            margin-top: 16px;
+            border-radius: 0 4px 4px 0;
+            font-size: 9.5pt;
+          }
+          .path-label {
+            font-family: sans-serif;
+            font-size: 8pt;
+            font-weight: bold;
+            color: #B45F3C;
+            text-transform: uppercase;
+            margin-right: 6px;
+          }
+          .path-desc {
+            font-size: 8.5pt;
+            color: #6E665E;
+            font-style: italic;
+            margin-top: 2px;
+          }
+        </style>
+      </head>
+      <body>
+        <div class="cover-page">
+          <div>
+            <div class="cover-badge">${book.isKidsMode ? 'Kids Storybook' : escapeXml(book.genre)}</div>
+            ${
+              book.moralLesson
+                ? `<span class="cover-badge" style="background:#FAEDE8; color:#B45F3C; margin-left:6px;">Value: ${escapeXml(book.moralLesson)}</span>`
+                : ''
+            }
+            <h1 class="cover-title">${escapeXml(book.title)}</h1>
+            <div class="cover-synopsis">${escapeXml(book.synopsis)}</div>
+            ${
+              book.coverImage
+                ? `<img src="${book.coverImage}" alt="${escapeXml(book.title)}" class="cover-image" />`
+                : ''
+            }
+            ${
+              book.cast && book.cast.length > 0
+                ? `
+              <div class="cast-section">
+                <div class="cast-title">Character Roster & Visuals</div>
+                <div class="cast-grid">${charactersHtml}</div>
+              </div>
+            `
+                : ''
+            }
+          </div>
+          <div class="cover-footer">
+            <span>MilousGem AI Studio • Total Chapters: ${book.chapters.length}</span>
+            <span><strong>Created & Designed by Sam © 2026</strong></span>
+          </div>
+        </div>
+        ${chaptersHtml}
+      </body>
+    </html>
+  `;
+
+  doc.open();
+  doc.write(html);
+  doc.close();
+
+  // Wait for images to load before printing
+  setTimeout(() => {
+    printFrame.contentWindow?.focus();
+    printFrame.contentWindow?.print();
+    setTimeout(() => {
+      document.body.removeChild(printFrame);
+    }, 2000);
+  }, 600);
+}
+
+/**
  * Share Story using Web Share API with Clipboard Fallback
  */
 export async function shareStory(

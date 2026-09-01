@@ -36,6 +36,7 @@ import { ReadingSettings } from '../utils/storage';
 import { narrator } from '../utils/speech';
 import {
   exportStoryToPDF,
+  printStoryToPDF,
   exportStoryToEPUB,
   exportStoryToText,
   shareStory,
@@ -149,7 +150,7 @@ export const StoryReader: React.FC<StoryReaderProps> = ({
   const [isRegeneratingImage, setIsRegeneratingImage] = useState(false);
   const [showSettingsDrawer, setShowSettingsDrawer] = useState(false);
   const [showExportMenu, setShowExportMenu] = useState(false);
-  const [exportLoading, setExportLoading] = useState<'pdf' | 'epub' | 'txt' | 'share' | null>(null);
+  const [exportLoading, setExportLoading] = useState<'pdf' | 'print' | 'epub' | 'txt' | 'share' | null>(null);
   const [shareFeedback, setShareFeedback] = useState<string | null>(null);
 
   // Multi-Language & Dutch Translation State
@@ -454,6 +455,20 @@ export const StoryReader: React.FC<StoryReaderProps> = ({
     }
   };
 
+  const handlePrintPDF = () => {
+    setExportLoading('print');
+    try {
+      printStoryToPDF(book);
+      setShareFeedback('Opening Print to PDF preview...');
+      setTimeout(() => setShareFeedback(null), 3500);
+    } catch (e) {
+      console.error('Print to PDF failed:', e);
+    } finally {
+      setExportLoading(null);
+      setShowExportMenu(false);
+    }
+  };
+
   const handleExportPDF = async () => {
     setExportLoading('pdf');
     try {
@@ -724,18 +739,45 @@ export const StoryReader: React.FC<StoryReaderProps> = ({
                 </div>
 
                 <button
+                  id="reader-print-pdf-btn"
+                  onClick={handlePrintPDF}
+                  disabled={exportLoading !== null}
+                  className="w-full text-left px-3 py-2 rounded-xl hover:bg-[#F5EFEB] flex items-center justify-between transition-colors group"
+                >
+                  <div className="flex items-center gap-2">
+                    <Printer className="w-3.5 h-3.5 text-[#5B6B56]" />
+                    <div>
+                      <div className="font-semibold text-[#3A342F]">Print to PDF</div>
+                      <div className="text-[10px] text-[#78716A]">Formatted layout & character visuals</div>
+                    </div>
+                  </div>
+                  {exportLoading === 'print' ? (
+                    <div className="w-3 h-3 border-2 border-[#5B6B56] border-t-transparent rounded-full animate-spin" />
+                  ) : (
+                    <span className="text-[10px] uppercase font-bold text-[#5B6B56] bg-[#EAF0E8] px-1.5 py-0.5 rounded">
+                      Print
+                    </span>
+                  )}
+                </button>
+
+                <button
+                  id="reader-download-pdf-btn"
                   onClick={handleExportPDF}
                   disabled={exportLoading !== null}
                   className="w-full text-left px-3 py-2 rounded-xl hover:bg-[#F5EFEB] flex items-center justify-between transition-colors"
                 >
                   <div className="flex items-center gap-2">
-                    <Printer className="w-3.5 h-3.5 text-[#B45F3C]" />
-                    <span>Export as PDF Book</span>
+                    <Download className="w-3.5 h-3.5 text-[#B45F3C]" />
+                    <div>
+                      <div className="font-medium text-[#3A342F]">Download PDF (.pdf)</div>
+                      <div className="text-[10px] text-[#78716A]">Offline storybook document</div>
+                    </div>
                   </div>
                   {exportLoading === 'pdf' && <div className="w-3 h-3 border-2 border-[#B45F3C] border-t-transparent rounded-full animate-spin" />}
                 </button>
 
                 <button
+                  id="reader-export-epub-btn"
                   onClick={handleExportEPUB}
                   disabled={exportLoading !== null}
                   className="w-full text-left px-3 py-2 rounded-xl hover:bg-[#F5EFEB] flex items-center justify-between transition-colors"
@@ -748,6 +790,7 @@ export const StoryReader: React.FC<StoryReaderProps> = ({
                 </button>
 
                 <button
+                  id="reader-export-txt-btn"
                   onClick={handleExportTXT}
                   disabled={exportLoading !== null}
                   className="w-full text-left px-3 py-2 rounded-xl hover:bg-[#F5EFEB] flex items-center justify-between transition-colors"
@@ -762,6 +805,7 @@ export const StoryReader: React.FC<StoryReaderProps> = ({
                 <div className="border-t border-[#E8E2D6] my-1" />
 
                 <button
+                  id="reader-share-story-btn"
                   onClick={handleShare}
                   disabled={exportLoading !== null}
                   className="w-full text-left px-3 py-2 rounded-xl bg-[#EAF0E8] text-[#3B5436] hover:bg-[#DFEAD9] font-bold flex items-center justify-between transition-colors"
@@ -1382,13 +1426,23 @@ export const StoryReader: React.FC<StoryReaderProps> = ({
             </p>
             <div className="flex flex-wrap justify-center gap-3 pt-2">
               <button
-                onClick={handleExportPDF}
+                id="reader-finish-print-btn"
+                onClick={handlePrintPDF}
                 disabled={exportLoading !== null}
                 className="px-5 py-2.5 rounded-xl bg-[#5B6B56] hover:bg-[#4D5C47] text-white font-bold text-xs sm:text-sm flex items-center gap-2 shadow-sm transition-colors"
               >
-                <Printer className="w-4 h-4" /> Export PDF Book
+                <Printer className="w-4 h-4" /> Print to PDF
               </button>
               <button
+                id="reader-finish-download-pdf-btn"
+                onClick={handleExportPDF}
+                disabled={exportLoading !== null}
+                className="px-5 py-2.5 rounded-xl bg-white text-[#4A443F] hover:bg-[#EAE5DC] border border-[#DFD8CA] font-bold text-xs sm:text-sm flex items-center gap-2 shadow-xs transition-colors"
+              >
+                <Download className="w-4 h-4 text-[#B45F3C]" /> Download .PDF
+              </button>
+              <button
+                id="reader-finish-epub-btn"
                 onClick={handleExportEPUB}
                 disabled={exportLoading !== null}
                 className="px-5 py-2.5 rounded-xl bg-[#B45F3C] hover:bg-[#A05333] text-white font-bold text-xs sm:text-sm flex items-center gap-2 shadow-sm transition-colors"

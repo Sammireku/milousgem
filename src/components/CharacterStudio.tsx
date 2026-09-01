@@ -23,6 +23,7 @@ import { Character, CharacterGender, CharacterRole, CharacterVisualProfile, Stor
 import { CharacterCard } from './CharacterCard';
 import { CameraCaptureModal } from './CameraCaptureModal';
 import { GENRE_PRESETS, INITIAL_PRESET_CHARACTERS } from '../utils/presets';
+import { compressImageFile, compressImageDataUrl, formatBytes, CompressionResult } from '../utils/imageCompression';
 
 interface CharacterStudioProps {
   characters: Character[];
@@ -71,6 +72,8 @@ export const CharacterStudio: React.FC<CharacterStudioProps> = ({
   const [isCreating, setIsCreating] = useState(false);
   const [isCameraOpen, setIsCameraOpen] = useState(false);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [isCompressing, setIsCompressing] = useState(false);
+  const [compressionStats, setCompressionStats] = useState<CompressionResult | null>(null);
   const [analysisError, setAnalysisError] = useState<string | null>(null);
 
   // Form State
@@ -115,6 +118,7 @@ export const CharacterStudio: React.FC<CharacterStudioProps> = ({
     setKeyColors(['#f59e0b', '#8b5cf6', '#ec4899']);
     setGenreAffinities(['fantasy', 'cyberpunk']);
     setAnalysisError(null);
+    setCompressionStats(null);
     setDetectedMultipleChars(null);
     setIsCreating(true);
   };
@@ -136,28 +140,66 @@ export const CharacterStudio: React.FC<CharacterStudioProps> = ({
     setKeyColors(char.visualProfile.keyColors || ['#f59e0b']);
     setGenreAffinities(char.genreAffinities || ['fantasy']);
     setAnalysisError(null);
+    setCompressionStats(null);
     setDetectedMultipleChars(null);
     setIsCreating(true);
   };
 
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      if (typeof event.target?.result === 'string') {
-        const base64 = event.target.result;
-        setPhotoUrl(base64);
-        analyzeImage(base64);
-      }
-    };
-    reader.readAsDataURL(file);
+    setIsCompressing(true);
+    setAnalysisError(null);
+    try {
+      // Compress and resize client-side to ensure fast transfer and low storage
+      const result = await compressImageFile(file, {
+        maxWidth: 1024,
+        maxHeight: 1024,
+        quality: 0.85,
+        mimeType: 'image/webp',
+      });
+      setCompressionStats(result);
+      setPhotoUrl(result.dataUrl);
+      await analyzeImage(result.dataUrl);
+    } catch (err: any) {
+      console.error('Image compression/upload failed:', err);
+      setAnalysisError('Image compression failed. Using original file format.');
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        if (typeof event.target?.result === 'string') {
+          const base64 = event.target.result;
+          setPhotoUrl(base64);
+          analyzeImage(base64);
+        }
+      };
+      reader.readAsDataURL(file);
+    } finally {
+      setIsCompressing(false);
+      e.target.value = '';
+    }
   };
 
-  const handleCameraCapture = (base64: string) => {
-    setPhotoUrl(base64);
-    analyzeImage(base64);
+  const handleCameraCapture = async (base64: string) => {
+    setIsCompressing(true);
+    setAnalysisError(null);
+    try {
+      const result = await compressImageDataUrl(base64, {
+        maxWidth: 1024,
+        maxHeight: 1024,
+        quality: 0.85,
+        mimeType: 'image/webp',
+      });
+      setCompressionStats(result);
+      setPhotoUrl(result.dataUrl);
+      await analyzeImage(result.dataUrl);
+    } catch (err: any) {
+      console.error('Camera capture compression failed:', err);
+      setPhotoUrl(base64);
+      analyzeImage(base64);
+    } finally {
+      setIsCompressing(false);
+    }
   };
 
   const analyzeImage = async (imageBase64: string) => {
@@ -300,10 +342,15 @@ export const CharacterStudio: React.FC<CharacterStudioProps> = ({
   };
 
   const filteredCharacters = characters.filter((c) => {
-    const matchesSearch =
-      c.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      c.titleOrRole.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      c.visualProfile.speciesOrArchetype.toLowerCase().includes(searchQuery.toLowerCase());
+    const query = searchQuery.toLowerCase().trim();
+    const matchesSearch = !query ||
+      c.name.toLowerCase().includes(query) ||
+      c.titleOrRole.toLowerCase().includes(query) ||
+      (c.visualProfile?.speciesOrArchetype || '').toLowerCase().includes(query) ||
+      (c.visualProfile?.appearanceTags || []).some((t) => t.toLowerCase().includes(query)) ||
+      (c.personality || []).some((p) => p.toLowerCase().includes(query)) ||
+      (c.backstory || '').toLowerCase().includes(query);
+
     const matchesRole = filterRole === 'all' || c.role === filterRole;
     return matchesSearch && matchesRole;
   });
@@ -433,13 +480,34 @@ export const CharacterStudio: React.FC<CharacterStudioProps> = ({
                 </div>
               )}
 
+              {/* Compression feedback badge */}
+              {compressionStats && (
+                <div className="p-2.5 rounded-xl bg-[#EAF0E8] border border-[#CAD7C6] text-[#2D3A2B] text-xs flex items-center justify-between shadow-xs animate-fade-in">
+                  <div className="flex items-center gap-1.5 font-medium">
+                    <Check className="w-3.5 h-3.5 text-[#5B6B56]" />
+                    <span>Image Compressed & Optimized</span>
+                  </div>
+                  <div className="text-[11px] text-[#4A5D44] font-mono font-semibold">
+                    {formatBytes(compressionStats.originalSize)} → {formatBytes(compressionStats.compressedSize)} (-{compressionStats.reductionPercentage}%)
+                  </div>
+                </div>
+              )}
+
+              {isCompressing && (
+                <div className="p-2.5 rounded-xl bg-[#F5EFEB] border border-[#DFD8CA] text-[#4A443F] text-xs flex items-center gap-2 animate-pulse">
+                  <RefreshCw className="w-3.5 h-3.5 text-[#5B6B56] animate-spin" />
+                  <span>Compressing & optimizing image fidelity...</span>
+                </div>
+              )}
+
               {/* Photo Input Buttons (Upload & Camera only) */}
               <div className="grid grid-cols-2 gap-3">
                 <button
                   type="button"
                   id="char-capture-camera-btn"
                   onClick={() => setIsCameraOpen(true)}
-                  className="flex items-center justify-center gap-2 py-3 px-4 rounded-xl bg-[#F5EFEB] hover:bg-[#EAE5DC] text-[#4A443F] text-xs font-semibold transition-all border border-[#DFD8CA] hover:border-[#5B6B56]/50 shadow-xs"
+                  disabled={isCompressing || isAnalyzing}
+                  className="flex items-center justify-center gap-2 py-3 px-4 rounded-xl bg-[#F5EFEB] hover:bg-[#EAE5DC] disabled:opacity-50 text-[#4A443F] text-xs font-semibold transition-all border border-[#DFD8CA] hover:border-[#5B6B56]/50 shadow-xs"
                 >
                   <Camera className="w-4 h-4 text-[#5B6B56]" />
                   <span>Use Camera</span>
@@ -448,7 +516,7 @@ export const CharacterStudio: React.FC<CharacterStudioProps> = ({
                 <label className="flex items-center justify-center gap-2 py-3 px-4 rounded-xl bg-[#F5EFEB] hover:bg-[#EAE5DC] text-[#4A443F] text-xs font-semibold cursor-pointer transition-all border border-[#DFD8CA] hover:border-[#B45F3C]/50 shadow-xs">
                   <Upload className="w-4 h-4 text-[#B45F3C]" />
                   <span>Upload Photo</span>
-                  <input type="file" accept="image/*" onChange={handleFileUpload} className="hidden" />
+                  <input type="file" accept="image/*" onChange={handleFileUpload} disabled={isCompressing || isAnalyzing} className="hidden" />
                 </label>
               </div>
 
@@ -756,33 +824,69 @@ export const CharacterStudio: React.FC<CharacterStudioProps> = ({
 
       {/* Roster Controls & Grid */}
       <div className="space-y-6">
-        <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
-          <div className="relative w-full sm:w-72">
-            <Search className="w-4 h-4 text-[#8C827A] absolute left-3 top-3" />
-            <input
-              id="char-roster-search"
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search characters by name or archetype..."
-              className="w-full pl-9 pr-4 py-2 rounded-xl bg-white border border-[#DFD8CA] text-[#3A342F] placeholder-[#9E968D] focus:outline-none focus:border-[#5B6B56] focus:ring-1 focus:ring-[#5B6B56]/20 text-xs sm:text-sm shadow-xs"
-            />
+        <div className="space-y-3">
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
+            {/* Search Bar with Clear Button */}
+            <div className="relative w-full sm:w-80">
+              <Search className="w-4 h-4 text-[#8C827A] absolute left-3.5 top-3 pointer-events-none" />
+              <input
+                id="char-roster-search"
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search by name, archetype, trait..."
+                className="w-full pl-9 pr-8 py-2 rounded-xl bg-white border border-[#DFD8CA] text-[#3A342F] placeholder-[#9E968D] focus:outline-none focus:border-[#5B6B56] focus:ring-1 focus:ring-[#5B6B56]/20 text-xs sm:text-sm shadow-xs"
+              />
+              {searchQuery && (
+                <button
+                  type="button"
+                  id="char-roster-search-clear"
+                  onClick={() => setSearchQuery('')}
+                  className="absolute right-2.5 top-2.5 p-0.5 rounded-md text-[#8C827A] hover:text-[#3A342F] hover:bg-[#F5EFEB]"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
+
+            {/* Role Filter Buttons */}
+            <div className="flex items-center gap-1.5 w-full sm:w-auto overflow-x-auto pb-1">
+              {['all', 'protagonist', 'companion', 'mentor', 'antagonist', 'wildcard'].map((r) => (
+                <button
+                  key={r}
+                  id={`char-filter-role-${r}`}
+                  onClick={() => setFilterRole(r)}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-semibold capitalize whitespace-nowrap transition-colors ${
+                    filterRole === r
+                      ? 'bg-[#5B6B56] text-white shadow-xs'
+                      : 'text-[#6E665E] hover:text-[#3A342F] bg-white border border-[#DFD8CA]'
+                  }`}
+                >
+                  {r}
+                </button>
+              ))}
+            </div>
           </div>
 
-          <div className="flex items-center gap-2 w-full sm:w-auto overflow-x-auto pb-1">
-            {['all', 'protagonist', 'companion', 'mentor', 'antagonist', 'wildcard'].map((r) => (
-              <button
-                key={r}
-                onClick={() => setFilterRole(r)}
-                className={`px-3 py-1.5 rounded-xl text-xs font-semibold capitalize whitespace-nowrap transition-colors ${
-                  filterRole === r
-                    ? 'bg-[#5B6B56] text-white shadow-xs'
-                    : 'text-[#6E665E] hover:text-[#3A342F] bg-white border border-[#DFD8CA]'
-                }`}
-              >
-                {r}
-              </button>
-            ))}
+          {/* Quick Archetype & Status Bar */}
+          <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-[#78716A] pt-1">
+            <div className="flex items-center gap-1.5 overflow-x-auto">
+              <span className="font-medium text-[#4A443F] shrink-0">Popular Archetypes:</span>
+              {['Pixar 3D', 'Explorer', 'Dreamer', 'Mentor', 'Wanderer', 'Aeronaut'].map((archetype) => (
+                <button
+                  key={archetype}
+                  type="button"
+                  onClick={() => setSearchQuery(archetype)}
+                  className="px-2 py-0.5 rounded-lg bg-[#F5EFEB] hover:bg-[#EAE5DC] text-[#5B554F] border border-[#DFD8CA] text-[11px] whitespace-nowrap transition-colors"
+                >
+                  {archetype}
+                </button>
+              ))}
+            </div>
+
+            <span className="font-medium text-[#5B6B56] shrink-0">
+              Showing {filteredCharacters.length} of {characters.length} characters
+            </span>
           </div>
         </div>
 
@@ -790,16 +894,31 @@ export const CharacterStudio: React.FC<CharacterStudioProps> = ({
         {filteredCharacters.length === 0 ? (
           <div className="p-12 text-center rounded-3xl bg-[#F5EFEB]/70 border border-[#DFD8CA] space-y-3">
             <Sparkles className="w-8 h-8 mx-auto text-[#A0988F]" />
-            <h4 className="font-serif text-lg font-bold text-[#3A342F]">No Characters Found</h4>
+            <h4 className="font-serif text-lg font-bold text-[#3A342F]">No Characters Match Your Search</h4>
             <p className="text-xs text-[#78716A] max-w-sm mx-auto">
-              Snap a portrait with your camera or upload an image to start populating your universe!
+              {searchQuery || filterRole !== 'all'
+                ? `No character found matching "${searchQuery || filterRole}". Try clearing your filters or create a new persona.`
+                : 'Snap a portrait with your camera or upload an image to start populating your universe!'}
             </p>
-            <button
-              onClick={startNewCharacter}
-              className="px-4 py-2 rounded-xl bg-[#5B6B56] text-white font-bold text-xs shadow-xs hover:bg-[#4D5C47]"
-            >
-              Create Character Now
-            </button>
+            <div className="flex items-center justify-center gap-3 pt-1">
+              {(searchQuery || filterRole !== 'all') && (
+                <button
+                  onClick={() => {
+                    setSearchQuery('');
+                    setFilterRole('all');
+                  }}
+                  className="px-4 py-2 rounded-xl bg-white border border-[#DFD8CA] text-[#4A443F] font-semibold text-xs shadow-xs hover:bg-[#F5EFEB]"
+                >
+                  Clear Filters
+                </button>
+              )}
+              <button
+                onClick={startNewCharacter}
+                className="px-4 py-2 rounded-xl bg-[#5B6B56] text-white font-bold text-xs shadow-xs hover:bg-[#4D5C47]"
+              >
+                Create Character Now
+              </button>
+            </div>
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">

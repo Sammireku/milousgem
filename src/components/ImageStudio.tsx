@@ -16,6 +16,7 @@ import {
   Grid,
 } from 'lucide-react';
 import { Character, StoryBook, StoryArtStyle } from '../types';
+import { compressImageFile, compressImageDataUrl, formatBytes, CompressionResult } from '../utils/imageCompression';
 
 interface ImageStudioProps {
   characters: Character[];
@@ -70,6 +71,8 @@ export const ImageStudio: React.FC<ImageStudioProps> = ({
   );
   const [editInstruction, setEditInstruction] = useState('Add glowing cybernetic markings and a dramatic neon cyan trenchcoat');
   const [isEditing, setIsEditing] = useState<boolean>(false);
+  const [isCompressingUpload, setIsCompressingUpload] = useState<boolean>(false);
+  const [uploadCompression, setUploadCompression] = useState<CompressionResult | null>(null);
   const [editedResultUrl, setEditedResultUrl] = useState<string | null>(null);
   const [feedbackMsg, setFeedbackMsg] = useState<string | null>(null);
 
@@ -157,10 +160,26 @@ export const ImageStudio: React.FC<ImageStudioProps> = ({
     }
   };
 
-  // Upload image from file
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  // Upload image from file with client-side compression
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) {
+    if (!file) return;
+
+    setIsCompressingUpload(true);
+    try {
+      const result = await compressImageFile(file, {
+        maxWidth: 1200,
+        maxHeight: 1200,
+        quality: 0.85,
+        mimeType: 'image/webp',
+      });
+      setUploadCompression(result);
+      setSourceEditImage(result.dataUrl);
+      setFeedbackMsg(
+        `Source image compressed (${formatBytes(result.originalSize)} → ${formatBytes(result.compressedSize)}, -${result.reductionPercentage}%) for faster loading and AI processing!`
+      );
+    } catch (err) {
+      console.error('Image compression failed:', err);
       const reader = new FileReader();
       reader.onload = (event) => {
         if (event.target?.result) {
@@ -168,6 +187,9 @@ export const ImageStudio: React.FC<ImageStudioProps> = ({
         }
       };
       reader.readAsDataURL(file);
+    } finally {
+      setIsCompressingUpload(false);
+      e.target.value = '';
     }
   };
 
@@ -440,7 +462,10 @@ export const ImageStudio: React.FC<ImageStudioProps> = ({
                   {characters.map((c) => (
                     <button
                       key={c.id}
-                      onClick={() => setSourceEditImage(c.visualProfile.photoUrl)}
+                      onClick={() => {
+                        setSourceEditImage(c.visualProfile.photoUrl);
+                        setUploadCompression(null);
+                      }}
                       className={`relative aspect-square rounded-xl overflow-hidden border-2 transition-all ${
                         sourceEditImage === c.visualProfile.photoUrl
                           ? 'border-[#5B6B56] ring-2 ring-[#CAD7C6]'
@@ -456,6 +481,24 @@ export const ImageStudio: React.FC<ImageStudioProps> = ({
                     </button>
                   ))}
                 </div>
+
+                {isCompressingUpload && (
+                  <div className="mt-2 p-2 rounded-xl bg-[#F5EFEB] border border-[#DFD8CA] text-xs text-[#5B554F] flex items-center gap-2 animate-pulse">
+                    <RefreshCw className="w-3.5 h-3.5 text-[#5B6B56] animate-spin" />
+                    <span>Compressing source image...</span>
+                  </div>
+                )}
+
+                {uploadCompression && (
+                  <div className="mt-2 p-2.5 rounded-xl bg-[#EAF0E8] border border-[#CAD7C6] text-xs text-[#2D3A2B] flex items-center justify-between shadow-xs">
+                    <span className="font-medium flex items-center gap-1">
+                      <CheckCircle2 className="w-3.5 h-3.5 text-[#5B6B56]" /> Compressed & Optimized
+                    </span>
+                    <span className="font-mono text-[11px] font-semibold text-[#4A5D44]">
+                      {formatBytes(uploadCompression.originalSize)} → {formatBytes(uploadCompression.compressedSize)} (-{uploadCompression.reductionPercentage}%)
+                    </span>
+                  </div>
+                )}
               </div>
 
               {/* Action Button */}

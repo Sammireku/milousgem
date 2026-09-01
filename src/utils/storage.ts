@@ -8,7 +8,25 @@ const STORAGE_KEYS = {
   ACTIVE_BOOK_ID: 'milousgem_active_book_id_v2',
   READING_SETTINGS: 'milousgem_reading_settings',
   DATA_INITIALIZED: 'milousgem_clean_slate_init',
+  STORY_DRAFT: 'milousgem_story_creator_draft_v2',
 };
+
+export interface StoryDraft {
+  step: 1 | 2 | 3;
+  title: string;
+  synopsis: string;
+  selectedGenre: string;
+  selectedArtStyle: string;
+  tone: string;
+  targetChapters: number;
+  entropyLevel: number;
+  isKidsMode: boolean;
+  targetAudience: string;
+  moralLesson: string;
+  generationMode: 'full_book' | 'interactive_branching';
+  selectedCastIds: string[];
+  lastSavedAt: number;
+}
 
 export interface ReadingSettings {
   fontSize: 'sm' | 'md' | 'lg' | 'xl';
@@ -145,3 +163,33 @@ export function saveReadingSettings(settings: ReadingSettings): void {
     console.error('Error saving settings', e);
   }
 }
+
+export function loadStoryDraft(): StoryDraft | null {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEYS.STORY_DRAFT);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (parsed && typeof parsed === 'object') return parsed as StoryDraft;
+    }
+  } catch (e) {
+    console.error('Error reading story draft from storage', e);
+  }
+  return null;
+}
+
+export function saveStoryDraft(draft: StoryDraft): void {
+  try {
+    localStorage.setItem(STORAGE_KEYS.STORY_DRAFT, JSON.stringify(draft));
+  } catch (e) {
+    console.error('Error saving story draft to storage', e);
+  }
+}
+
+export function clearStoryDraft(): void {
+  try {
+    localStorage.removeItem(STORAGE_KEYS.STORY_DRAFT);
+  } catch (e) {
+    console.error('Error clearing story draft from storage', e);
+  }
+}
+

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   Sparkles,
   BookOpen,
@@ -16,6 +16,9 @@ import {
   Heart,
   Baby,
   Smile,
+  Save,
+  RotateCcw,
+  Check,
 } from 'lucide-react';
 import {
   Character,
@@ -28,6 +31,7 @@ import {
 } from '../types';
 import { GENRE_PRESETS, ART_STYLES, KIDS_MORAL_THEMES } from '../utils/presets';
 import { CharacterCard } from './CharacterCard';
+import { loadStoryDraft, saveStoryDraft, clearStoryDraft, StoryDraft } from '../utils/storage';
 import confetti from 'canvas-confetti';
 
 interface StoryCreatorProps {
@@ -43,36 +47,120 @@ export const StoryCreator: React.FC<StoryCreatorProps> = ({
   onOpenCharacterStudio,
   preselectedCharacter,
 }) => {
-  const [step, setStep] = useState<1 | 2 | 3>(1);
+  // Load initial draft from localStorage if available
+  const initialDraft = useMemo(() => loadStoryDraft(), []);
+
+  const [step, setStep] = useState<1 | 2 | 3>(initialDraft ? initialDraft.step : 1);
 
   // Kids Mode Toggle & Settings
-  const [isKidsMode, setIsKidsMode] = useState<boolean>(false);
-  const [targetAudience, setTargetAudience] = useState<TargetAudience>('all_ages');
-  const [moralLesson, setMoralLesson] = useState<string>('');
+  const [isKidsMode, setIsKidsMode] = useState<boolean>(initialDraft ? initialDraft.isKidsMode : false);
+  const [targetAudience, setTargetAudience] = useState<TargetAudience>(
+    initialDraft ? (initialDraft.targetAudience as TargetAudience) : 'all_ages'
+  );
+  const [moralLesson, setMoralLesson] = useState<string>(initialDraft ? initialDraft.moralLesson : '');
 
   // Generation Mode: Full Book (Default) vs Interactive Branching
-  const [generationMode, setGenerationMode] = useState<'full_book' | 'interactive_branching'>('full_book');
-
-  // Cast Selection (up to 3 characters)
-  const [selectedCast, setSelectedCast] = useState<Character[]>(
-    preselectedCharacter ? [preselectedCharacter] : characters.slice(0, 1)
+  const [generationMode, setGenerationMode] = useState<'full_book' | 'interactive_branching'>(
+    initialDraft ? initialDraft.generationMode : 'full_book'
   );
 
+  // Cast Selection (up to 3 characters)
+  const [selectedCast, setSelectedCast] = useState<Character[]>(() => {
+    if (preselectedCharacter) return [preselectedCharacter];
+    if (initialDraft && initialDraft.selectedCastIds && initialDraft.selectedCastIds.length > 0) {
+      const matched = characters.filter((c) => initialDraft.selectedCastIds.includes(c.id));
+      if (matched.length > 0) return matched;
+    }
+    return characters.slice(0, 1);
+  });
+
   // Genre & Art Style
-  const [selectedGenre, setSelectedGenre] = useState<StoryGenre>('fantasy');
-  const [selectedArtStyle, setSelectedArtStyle] = useState<StoryArtStyle>('watercolor_storybook');
+  const [selectedGenre, setSelectedGenre] = useState<StoryGenre>(
+    initialDraft ? (initialDraft.selectedGenre as StoryGenre) : 'fantasy'
+  );
+  const [selectedArtStyle, setSelectedArtStyle] = useState<StoryArtStyle>(
+    initialDraft ? (initialDraft.selectedArtStyle as StoryArtStyle) : 'watercolor_storybook'
+  );
 
   // Blueprint & Anti-Repetition Settings
-  const [title, setTitle] = useState('');
-  const [synopsis, setSynopsis] = useState('');
-  const [tone, setTone] = useState<StoryTone>('epic_heroic');
-  const [targetChapters, setTargetChapters] = useState<number>(10);
-  const [entropyLevel, setEntropyLevel] = useState<number>(0.85);
+  const [title, setTitle] = useState(initialDraft ? initialDraft.title : '');
+  const [synopsis, setSynopsis] = useState(initialDraft ? initialDraft.synopsis : '');
+  const [tone, setTone] = useState<StoryTone>(initialDraft ? (initialDraft.tone as StoryTone) : 'epic_heroic');
+  const [targetChapters, setTargetChapters] = useState<number>(initialDraft ? initialDraft.targetChapters : 10);
+  const [entropyLevel, setEntropyLevel] = useState<number>(initialDraft ? initialDraft.entropyLevel : 0.85);
+
+  // Draft auto-save state
+  const [hasRestoredDraft, setHasRestoredDraft] = useState<boolean>(
+    Boolean(initialDraft && (initialDraft.title || initialDraft.synopsis || initialDraft.step > 1))
+  );
+  const [lastAutoSavedTime, setLastAutoSavedTime] = useState<number | null>(
+    initialDraft ? initialDraft.lastSavedAt : null
+  );
 
   // Generation loading
   const [isGenerating, setIsGenerating] = useState(false);
   const [generationStepStatus, setGenerationStepStatus] = useState<string>('');
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  // Auto-save intermediate drafts to local storage
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      const now = Date.now();
+      const draft: StoryDraft = {
+        step,
+        title,
+        synopsis,
+        selectedGenre,
+        selectedArtStyle,
+        tone,
+        targetChapters,
+        entropyLevel,
+        isKidsMode,
+        targetAudience,
+        moralLesson,
+        generationMode,
+        selectedCastIds: selectedCast.map((c) => c.id),
+        lastSavedAt: now,
+      };
+      saveStoryDraft(draft);
+      setLastAutoSavedTime(now);
+    }, 500);
+
+    return () => clearTimeout(timer);
+  }, [
+    step,
+    title,
+    synopsis,
+    selectedGenre,
+    selectedArtStyle,
+    tone,
+    targetChapters,
+    entropyLevel,
+    isKidsMode,
+    targetAudience,
+    moralLesson,
+    generationMode,
+    selectedCast,
+  ]);
+
+  const handleClearDraft = () => {
+    clearStoryDraft();
+    setStep(1);
+    setTitle('');
+    setSynopsis('');
+    setSelectedGenre('fantasy');
+    setSelectedArtStyle('watercolor_storybook');
+    setTone('epic_heroic');
+    setTargetChapters(10);
+    setEntropyLevel(0.85);
+    setIsKidsMode(false);
+    setTargetAudience('all_ages');
+    setMoralLesson('');
+    setGenerationMode('full_book');
+    setSelectedCast(characters.slice(0, 1));
+    setHasRestoredDraft(false);
+    setLastAutoSavedTime(null);
+  };
 
   const toggleKidsMode = (enable: boolean) => {
     setIsKidsMode(enable);
@@ -317,6 +405,7 @@ export const StoryCreator: React.FC<StoryCreatorProps> = ({
           });
         } catch (e) {}
 
+        clearStoryDraft();
         onCreateBook(newBook);
         return;
       }
@@ -451,6 +540,7 @@ export const StoryCreator: React.FC<StoryCreatorProps> = ({
         });
       } catch (e) {}
 
+      clearStoryDraft();
       onCreateBook(newBook);
     } catch (err: any) {
       console.error('Error creating book:', err);
@@ -572,6 +662,42 @@ export const StoryCreator: React.FC<StoryCreatorProps> = ({
           >
             <span>3. Plot & Sparks</span>
           </button>
+        </div>
+
+        {/* Auto-Save & Draft Restoration Status Bar */}
+        <div className="flex items-center justify-between px-3.5 py-1.5 rounded-xl bg-[#F5EFEB] border border-[#DFD8CA] text-[11px] text-[#6E665E]">
+          <div className="flex items-center gap-1.5">
+            <Check className="w-3.5 h-3.5 text-[#5B6B56]" />
+            <span>
+              {lastAutoSavedTime ? (
+                <>
+                  Draft auto-saved •{' '}
+                  <span className="text-[#8C827A]">
+                    {new Date(lastAutoSavedTime).toLocaleTimeString([], {
+                      hour: '2-digit',
+                      minute: '2-digit',
+                      second: '2-digit',
+                    })}
+                  </span>
+                </>
+              ) : (
+                'Draft auto-saves automatically'
+              )}
+            </span>
+          </div>
+
+          {(title || synopsis || hasRestoredDraft || step > 1) && (
+            <button
+              id="creator-clear-draft-btn"
+              type="button"
+              onClick={handleClearDraft}
+              className="flex items-center gap-1 text-[11px] text-[#B45F3C] hover:text-[#933D22] font-semibold transition-colors"
+              title="Discard saved draft and reset fields"
+            >
+              <RotateCcw className="w-3 h-3" />
+              <span>Clear Draft</span>
+            </button>
+          )}
         </div>
       </div>
 
