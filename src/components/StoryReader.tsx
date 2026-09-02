@@ -31,8 +31,16 @@ import {
   Languages,
   Globe,
   StickyNote,
+  Compass,
+  Music,
+  Moon,
+  Sun,
+  Palette,
+  HelpCircle,
+  Heart,
+  Smile,
 } from 'lucide-react';
-import { StoryBook, StoryChapter, StoryChoice } from '../types';
+import { StoryBook, StoryChapter, StoryChoice, Character } from '../types';
 import { ReadingSettings } from '../utils/storage';
 import { narrator } from '../utils/speech';
 import {
@@ -43,6 +51,11 @@ import {
   shareStory,
 } from '../utils/exportStory';
 import { MarginNotesSidebar } from './MarginNotesSidebar';
+import { StoryJourneyMap } from './StoryJourneyMap';
+import { VocabularyModal, VocabularyEntry } from './VocabularyModal';
+import { ColoringPageModal } from './ColoringPageModal';
+import { ambientSound, SOUNDSCAPE_OPTIONS, SoundscapeType } from '../utils/ambientSound';
+import { STORY_VOCABULARY_DATABASE } from '../utils/vocabulary';
 import confetti from 'canvas-confetti';
 
 export interface LanguageOption {
@@ -129,6 +142,13 @@ const THEME_STYLES: Record<string, { bg: string; text: string; proseBg: string; 
     border: 'border-[#384E3F]',
     accent: 'text-[#9ECE6A]',
   },
+  bedtime_amber: {
+    bg: 'bg-[#1C1815]',
+    text: 'text-[#E8DFC8]',
+    proseBg: 'bg-[#26211C]',
+    border: 'border-[#3D342C]',
+    accent: 'text-[#E0A868]',
+  },
 };
 
 export const StoryReader: React.FC<StoryReaderProps> = ({
@@ -156,6 +176,13 @@ export const StoryReader: React.FC<StoryReaderProps> = ({
   const [exportLoading, setExportLoading] = useState<'pdf' | 'print' | 'epub' | 'txt' | 'share' | null>(null);
   const [shareFeedback, setShareFeedback] = useState<string | null>(null);
 
+  // New Interactive Feature States
+  const [isJourneyMapOpen, setIsJourneyMapOpen] = useState(false);
+  const [isColoringModalOpen, setIsColoringModalOpen] = useState(false);
+  const [isVocabModalOpen, setIsVocabModalOpen] = useState(false);
+  const [selectedVocabEntry, setSelectedVocabEntry] = useState<VocabularyEntry | null>(null);
+  const [showSoundscapeMenu, setShowSoundscapeMenu] = useState(false);
+
   // Margin Notes count calculation
   const currentChapterNotesCount = (currentChapter.notes || []).length;
   const totalBookNotesCount = book.chapters.reduce(
@@ -177,6 +204,113 @@ export const StoryReader: React.FC<StoryReaderProps> = ({
   const currentTranslationKey = `${currentChapter.id}_${selectedLanguage}`;
   const activeTranslation = selectedLanguage !== 'en' ? translationsCache[currentTranslationKey] : null;
   const currentLangOption = SUPPORTED_LANGUAGES.find((l) => l.id === selectedLanguage) || SUPPORTED_LANGUAGES[0];
+
+  // Sync ambient soundscape with settings
+  useEffect(() => {
+    if (readingSettings.ambientSound && readingSettings.soundscapeType && readingSettings.soundscapeType !== 'none') {
+      ambientSound.play(readingSettings.soundscapeType, readingSettings.soundscapeVolume ?? 0.35);
+    } else {
+      ambientSound.stop();
+    }
+    return () => {
+      ambientSound.stop();
+    };
+  }, [readingSettings.ambientSound, readingSettings.soundscapeType]);
+
+  const handleToggleSoundscape = (type: SoundscapeType) => {
+    if (type === 'none') {
+      onUpdateSettings({
+        ...readingSettings,
+        ambientSound: false,
+        soundscapeType: 'none',
+      });
+      ambientSound.stop();
+    } else {
+      onUpdateSettings({
+        ...readingSettings,
+        ambientSound: true,
+        soundscapeType: type,
+      });
+      ambientSound.play(type, readingSettings.soundscapeVolume ?? 0.35);
+    }
+  };
+
+  const handleVolumeChange = (vol: number) => {
+    onUpdateSettings({
+      ...readingSettings,
+      soundscapeVolume: vol,
+    });
+    ambientSound.setVolume(vol);
+  };
+
+  const handleToggleBedtimeMode = () => {
+    const nextBedtime = !readingSettings.bedtimeMode;
+    onUpdateSettings({
+      ...readingSettings,
+      bedtimeMode: nextBedtime,
+      speechRate: nextBedtime ? 0.9 : 1.0, // gentle slower bedtime pace
+    });
+  };
+
+  const handleWordClick = (wordText: string) => {
+    const cleanWord = wordText.toLowerCase().replace(/[^a-z]/g, '');
+    const entry = STORY_VOCABULARY_DATABASE[cleanWord];
+    if (entry) {
+      setSelectedVocabEntry(entry);
+      setIsVocabModalOpen(true);
+    } else {
+      // General dynamic lookup
+      setSelectedVocabEntry({
+        word: cleanWord,
+        phonetic: cleanWord,
+        partOfSpeech: 'story word',
+        definition: `A memorable key word appearing in Chapter ${currentChapter.chapterNumber}.`,
+        childFriendlyExplanation: `This word was highlighted in ${book.title}. Tap 'Save to Margin Notes' to write a personal study note!`,
+        exampleSentence: `"...${wordText}..."`,
+        synonyms: [],
+      });
+      setIsVocabModalOpen(true);
+    }
+  };
+
+  // Helper to render interactive text with vocabulary words highlighted
+  const renderInteractiveParagraph = (text: string, isFirstParagraph: boolean) => {
+    const words = text.split(/(\s+)/);
+    const elements: React.ReactNode[] = [];
+
+    words.forEach((word, idx) => {
+      const clean = word.toLowerCase().replace(/[^a-z]/g, '');
+      const isVocab = readingSettings.interactiveVocab !== false && !!STORY_VOCABULARY_DATABASE[clean];
+
+      if (isVocab) {
+        elements.push(
+          <span
+            key={idx}
+            onClick={() => handleWordClick(clean)}
+            className="cursor-pointer underline decoration-dotted decoration-[#5B6B56] hover:decoration-solid hover:bg-[#EAF0E8] hover:text-[#3B5436] rounded-xs px-0.5 transition-all text-[#3B5436] font-medium"
+            title={`Explore word: ${clean}`}
+          >
+            {word}
+          </span>
+        );
+      } else {
+        elements.push(word);
+      }
+    });
+
+    if (isFirstParagraph && elements.length > 0) {
+      return (
+        <>
+          <span className="float-left text-4xl sm:text-5xl font-bold font-serif leading-none pr-3 pt-1 text-[#5B6B56]">
+            {text.charAt(0)}
+          </span>
+          {elements}
+        </>
+      );
+    }
+
+    return elements;
+  };
 
   const handleSelectLanguage = async (langId: string) => {
     setSelectedLanguage(langId);
@@ -579,6 +713,127 @@ export const StoryReader: React.FC<StoryReaderProps> = ({
 
         {/* Reader Controls */}
         <div className="flex items-center gap-1 sm:gap-2 shrink-0 relative">
+          {/* Illustrated Journey Map Button */}
+          <button
+            id="reader-journey-map-btn"
+            onClick={() => setIsJourneyMapOpen(true)}
+            className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-full text-xs font-semibold bg-[#EAF0E8] text-[#3B5436] hover:bg-[#D8E6D5] border border-[#CAD7C6] transition-all shadow-xs"
+            title="Illustrated Chronicle Cartography & Branch Journey Tracker"
+          >
+            <Compass className="w-3.5 h-3.5 text-[#5B6B56] animate-spin-slow" />
+            <span className="hidden md:inline">Journey Map</span>
+          </button>
+
+          {/* Ambient Soundscapes Selector Button */}
+          <div className="relative">
+            <button
+              id="reader-soundscape-btn"
+              onClick={() => {
+                setShowSoundscapeMenu(!showSoundscapeMenu);
+                setShowLanguageMenu(false);
+                setShowExportMenu(false);
+                setShowSettingsDrawer(false);
+              }}
+              className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-full text-xs font-semibold transition-all shadow-xs ${
+                readingSettings.ambientSound && readingSettings.soundscapeType !== 'none'
+                  ? 'bg-[#B45F3C] text-white shadow-sm'
+                  : 'bg-white hover:bg-[#EAE5DC] text-[#4A443F] border border-[#DFD8CA]'
+              }`}
+              title="Ambient Story Mood Soundscapes"
+            >
+              <Music className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">
+                {readingSettings.ambientSound && readingSettings.soundscapeType !== 'none'
+                  ? SOUNDSCAPE_OPTIONS.find((s) => s.id === readingSettings.soundscapeType)?.label
+                  : 'Audio Mood'}
+              </span>
+            </button>
+
+            {/* Soundscape Dropdown Menu */}
+            {showSoundscapeMenu && (
+              <div className="absolute right-0 mt-2 w-72 p-3 rounded-2xl bg-white border border-[#DFD8CA] shadow-2xl z-40 text-xs text-[#4A443F] space-y-3 animate-fade-in">
+                <div className="flex items-center justify-between border-b border-[#E8E2D6] pb-2 font-serif font-bold text-[#3A342F]">
+                  <div className="flex items-center gap-1.5">
+                    <Music className="w-4 h-4 text-[#B45F3C]" />
+                    <span>Story Soundscapes</span>
+                  </div>
+                  <button
+                    onClick={() => setShowSoundscapeMenu(false)}
+                    className="p-1 rounded-lg text-[#78716A] hover:text-[#3A342F]"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+
+                {/* Volume Slider */}
+                <div className="space-y-1 p-2 rounded-xl bg-[#FAF8F5] border border-[#DFD8CA]">
+                  <div className="flex items-center justify-between text-[11px] font-bold text-[#78716A]">
+                    <span>Soundscape Volume</span>
+                    <span className="text-[#5B6B56]">{Math.round((readingSettings.soundscapeVolume ?? 0.35) * 100)}%</span>
+                  </div>
+                  <input
+                    type="range"
+                    min="0.05"
+                    max="1"
+                    step="0.05"
+                    value={readingSettings.soundscapeVolume ?? 0.35}
+                    onChange={(e) => handleVolumeChange(parseFloat(e.target.value))}
+                    className="w-full accent-[#5B6B56] cursor-pointer"
+                  />
+                </div>
+
+                {/* Soundscape Choices */}
+                <div className="space-y-1 max-h-56 overflow-y-auto">
+                  {SOUNDSCAPE_OPTIONS.map((opt) => (
+                    <button
+                      key={opt.id}
+                      onClick={() => {
+                        handleToggleSoundscape(opt.id);
+                        if (opt.id === 'none') {
+                          setShowSoundscapeMenu(false);
+                        }
+                      }}
+                      className={`w-full text-left p-2 rounded-xl flex items-center justify-between transition-colors ${
+                        readingSettings.soundscapeType === opt.id
+                          ? 'bg-[#EAF0E8] text-[#3B5436] font-bold border border-[#CAD7C6]'
+                          : 'hover:bg-[#F5EFEB] text-[#4A443F]'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2">
+                        <span className="text-base">{opt.icon}</span>
+                        <div>
+                          <div className="font-semibold">{opt.label}</div>
+                          <div className="text-[10px] text-[#78716A]">{opt.description}</div>
+                        </div>
+                      </div>
+                      {readingSettings.soundscapeType === opt.id && (
+                        <Check className="w-3.5 h-3.5 text-[#3B5436] shrink-0" />
+                      )}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Bedtime / Wind-Down Reading Mode Toggle */}
+          <button
+            id="reader-bedtime-toggle-btn"
+            onClick={handleToggleBedtimeMode}
+            className={`p-2 rounded-full transition-all border shadow-xs ${
+              readingSettings.bedtimeMode
+                ? 'bg-[#E0A868] text-[#1C1815] border-[#E0A868] shadow-md ring-2 ring-[#E0A868]/30'
+                : 'bg-white text-[#78716A] hover:text-[#3A342F] hover:bg-[#EAE5DC] border-[#DFD8CA]'
+            }`}
+            title={readingSettings.bedtimeMode ? 'Bedtime Mode Active (Gentle Evening Glow)' : 'Turn on Bedtime / Wind-Down Mode'}
+          >
+            {readingSettings.bedtimeMode ? (
+              <Moon className="w-3.5 h-3.5 sm:w-4 sm:h-4 fill-[#1C1815]" />
+            ) : (
+              <Moon className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+            )}
+          </button>
+
           {/* Bookmark Button */}
           <button
             id="reader-bookmark-btn"
@@ -630,6 +885,7 @@ export const StoryReader: React.FC<StoryReaderProps> = ({
               id="reader-language-btn"
               onClick={() => {
                 setShowLanguageMenu(!showLanguageMenu);
+                setShowSoundscapeMenu(false);
                 setShowExportMenu(false);
                 setShowSettingsDrawer(false);
               }}
@@ -706,6 +962,7 @@ export const StoryReader: React.FC<StoryReaderProps> = ({
               setIsMarginNotesOpen(!isMarginNotesOpen);
               setShowSettingsDrawer(false);
               setShowExportMenu(false);
+              setShowSoundscapeMenu(false);
             }}
             className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-full text-xs font-semibold transition-all shadow-xs ${
               isMarginNotesOpen
@@ -749,6 +1006,7 @@ export const StoryReader: React.FC<StoryReaderProps> = ({
             onClick={() => {
               setShowSettingsDrawer(!showSettingsDrawer);
               setShowExportMenu(false);
+              setShowSoundscapeMenu(false);
             }}
             className="p-2 rounded-full bg-white text-[#4A443F] hover:bg-[#EAE5DC] border border-[#DFD8CA] shadow-xs transition-colors"
             title="Story Aesthetics & Themes"
@@ -763,6 +1021,7 @@ export const StoryReader: React.FC<StoryReaderProps> = ({
               onClick={() => {
                 setShowExportMenu(!showExportMenu);
                 setShowSettingsDrawer(false);
+                setShowSoundscapeMenu(false);
               }}
               className="flex items-center gap-1 px-2.5 sm:px-3 py-1.5 rounded-full bg-white text-[#4A443F] hover:bg-[#EAE5DC] border border-[#DFD8CA] shadow-xs transition-colors text-xs font-semibold"
               title="Export & Share Options"
@@ -773,10 +1032,31 @@ export const StoryReader: React.FC<StoryReaderProps> = ({
 
             {/* Export & Share Menu Popup */}
             {showExportMenu && (
-              <div className="absolute right-0 mt-2 w-56 p-2 rounded-2xl bg-white border border-[#DFD8CA] shadow-2xl z-40 text-xs text-[#4A443F] space-y-1 animate-fade-in">
+              <div className="absolute right-0 mt-2 w-60 p-2 rounded-2xl bg-white border border-[#DFD8CA] shadow-2xl z-40 text-xs text-[#4A443F] space-y-1 animate-fade-in">
                 <div className="px-3 py-1.5 border-b border-[#E8E2D6] font-serif font-bold text-[#3A342F]">
-                  Export & Share Book
+                  Export & Keepsakes
                 </div>
+
+                {/* Printable Coloring Page & Dedication Studio */}
+                <button
+                  id="reader-coloring-modal-btn"
+                  onClick={() => {
+                    setIsColoringModalOpen(true);
+                    setShowExportMenu(false);
+                  }}
+                  className="w-full text-left px-3 py-2 rounded-xl bg-[#FAF0EB] text-[#B45F3C] hover:bg-[#F6E3DB] flex items-center justify-between font-bold transition-colors"
+                >
+                  <div className="flex items-center gap-2">
+                    <Palette className="w-3.5 h-3.5 text-[#B45F3C]" />
+                    <div>
+                      <div className="font-bold">Coloring & Dedication</div>
+                      <div className="text-[10px] text-[#8C5D39] font-normal">Line-art coloring keepsake</div>
+                    </div>
+                  </div>
+                  <span className="text-[10px] uppercase font-bold bg-white/70 px-1.5 py-0.5 rounded text-[#B45F3C]">
+                    Art
+                  </span>
+                </button>
 
                 <button
                   id="reader-print-pdf-btn"

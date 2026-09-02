@@ -57,6 +57,53 @@ const OPEN_SOURCE_CANDIDATE_MODELS = [
   'gemma2-9b-it',
 ].filter(Boolean) as string[];
 
+/**
+ * Resilient Gemini API caller with automatic model cascading and 503/429 high demand retries
+ */
+async function callGeminiContentResilient(
+  params: {
+    contents: any;
+    config?: any;
+    systemInstruction?: string;
+  },
+  primaryModel = 'gemini-2.5-flash'
+) {
+  const modelsToTry = [
+    primaryModel,
+    'gemini-2.5-flash',
+    'gemini-1.5-flash',
+    'gemini-2.0-flash',
+    'gemini-3.7-flash',
+  ].filter((m, idx, self) => Boolean(m) && self.indexOf(m) === idx);
+
+  const ai = getGeminiClient();
+  let lastErr: any = null;
+
+  for (const model of modelsToTry) {
+    try {
+      const response = await ai.models.generateContent({
+        model,
+        contents: params.contents,
+        config: {
+          ...(params.config || {}),
+          ...(params.systemInstruction ? { systemInstruction: params.systemInstruction } : {}),
+        },
+      });
+      return response;
+    } catch (err: any) {
+      lastErr = err;
+      const isTransient =
+        err?.status === 'UNAVAILABLE' ||
+        err?.code === 503 ||
+        err?.code === 429 ||
+        (err?.message && (err.message.includes('high demand') || err.message.includes('quota') || err.message.includes('RATE_LIMIT')));
+      console.warn(`[Gemini API] Model ${model} ${isTransient ? 'experiencing high demand (503/429)' : 'failed'}: ${err?.message || err}. Cascading to next model...`);
+    }
+  }
+
+  throw lastErr;
+}
+
 async function callGroqFallback(messages: Array<{ role: string; content: string }>, jsonMode = false): Promise<string> {
   const groqKey = process.env.GROQ_API_KEY;
   if (!groqKey) {
@@ -132,7 +179,49 @@ function extractJSON(text: string): any {
 }
 
 /**
- * Procedural story chapter generator fallback (guarantees book creation never fails)
+ * Master Prompt & Storytelling Protocol definition for MilousGem Engine
+ */
+const MASTER_STORY_SYSTEM_PROMPT = `
+You are an expert children's author, literary strategist, and visual director. Your objective is to write an original, highly engaging story and generate matching image-generation prompts page-by-page based on the provided parameters.
+
+1. AGE-APPROPRIATE NARRATIVE ENGINE
+Adapt vocabulary, tone, thematic complexity, and pacing strictly according to the specified [TARGET AGE RANGE]:
+- Ages 2–4 (Toddler / Early Emergent): Focus: High rhythm, sensory discovery, predictable patterns, physical/tactile actions. Pacing: Short sentences (3–8 words), high repetition, sound effects (onomatopoeia). Story Goal: Simple goal-oriented journeys (e.g., finding a lost hat, exploring a garden).
+- Ages 5–7 (Early Reader / Picture Book): Focus: Playful dialogue, clear cause-and-effect, emotional awareness, subtle humor. Pacing: Active verbs, simple compound sentences, strong visual momentum per page. Story Goal: Overcoming everyday obstacles (e.g., building a broken raft, making a new friend).
+- Ages 8–10 (Middle Grade / Chapter Book): Focus: Internal vs. external conflict, friendship dynamics, clever problem-solving, worldbuilding logic. Pacing: Varied sentence structure, suspenseful chapter/page ends, richer vocabulary. Story Goal: Deciphering mysteries, completing missions, learning self-reliance without adults intervening.
+- Ages 11–13 (Upper Middle Grade / Early Teen): Focus: Complex morality, identity formation, high-stakes consequences, nuanced dialogue, emotional subtext. Pacing: Fast-paced action balanced with inner monologue and descriptive atmosphere. Story Goal: Navigating changing relationships, systemic challenges, or personal flaws.
+- Young Adult (YA - Ages 14+): Focus: Deep character arcs, philosophical questions, intense emotional resonance, sophisticated sub-genres (e.g., Solarpunk, Silkpunk, Historical Noir). Pacing: Dynamic narrative voice, immersive worldbuilding, high narrative tension. Story Goal: Reclaiming agency, facing systemic or personal transformation.
+
+2. STORYTELLING & QUALITY RULES
+- Zero AI Clichés: Strictly prohibited names (e.g., Pip, Oliver, Luna, Barnaby) and tired tropes (e.g., magical glowing forest crystals, sudden elder-owl wisdom, shoehorned "power of friendship" lessons). Use original, evocative names.
+- Active Protagonist: The main character must make tangible choices that push the plot forward. Problems are solved through logic, tool use, trial, and error—never instant magic powders or deus-ex-machina.
+- Structural Progression Across Pages: Follow an active 5-stage structural arc across the total page count:
+  * Stage 1 (Page 1..N/4): Inciting disruption to the status quo.
+  * Stage 2 (Page N/4..N/2): Escalating physical or logistical obstacles.
+  * Stage 3 (Page N/2..3N/4): Midpoint realization or strategy shift.
+  * Stage 4 (Page 3N/4..N-1): Climax requiring character growth or clever resourcefulness.
+  * Stage 5 (Page N): Satisfying resolution (NO moralizing summary sentences at the end).
+- Show, Don't Tell: Ground every page in sensory worldbuilding and distinct character voices.
+- Absolute Non-Repetition: EVERY page MUST have completely unique, progressive narrative text advancing the plot. NO repeating paragraphs or identical sentence templates across pages.
+
+3. VISUAL & IMAGE PROMPT PROTOCOL
+For every page/chapter, generate a precise prompt for an image generator (e.g., Pixar 3D Render or Flat Cartoon Vector).
+- Fixed Style: Enforce [Pixar 3D Render / Flat Cartoon Vector] strictly.
+- Visual Anchor (Mandatory): Re-state the exact visual details of custom characters in every prompt to maintain visual continuity across the entire book (hair color, clothing, signature traits).
+- Dynamic Framing: Shift camera perspective across pages (close-ups, wide landscape shots, low-angle action shots, bird's-eye views).
+- Technical Quality: Include lighting, palette, and environment details. NO text, letters, or typography inside the artwork.
+
+4. OUTPUT FORMAT PER PAGE
+For each page, output:
+- chapterNumber (integer 1 to N)
+- title (evocative title for page X)
+- summary (1 sentence scene overview)
+- content (complete unique narrative text for Page X following age range pacing)
+- illustrationPrompt (Detailed prompt containing: Art Style, Scene Details, Visual Anchors, Environment & Lighting, Camera Framing)
+`;
+
+/**
+ * Procedural story chapter generator fallback (guarantees book creation never fails and NEVER repeats text)
  */
 function generateProceduralChapter(options: {
   bookTitle: string;
@@ -144,76 +233,94 @@ function generateProceduralChapter(options: {
   chapterNumber: number;
   totalTargetChapters: number;
   chosenChoiceAction?: string;
+  targetAudience?: string;
 }) {
-  const { bookTitle, synopsis, genre, tone, artStyle, cast, chapterNumber, totalTargetChapters, chosenChoiceAction } = options;
-  const lead = cast[0] || { name: 'The Hero', titleOrRole: 'The Wanderer', signatureItem: 'A silver talisman' };
+  const { bookTitle, synopsis, genre, tone, artStyle, cast, chapterNumber, totalTargetChapters, chosenChoiceAction, targetAudience = '5-7' } = options;
+  const lead = cast[0] || { name: 'Milo', titleOrRole: 'The Young Explorer', signatureItem: 'A brass compass', visualProfile: { appearanceTags: ['dark curly hair', 'yellow raincoat', 'red boots'] } };
   const companion = cast[1] || null;
-  const isFinal = chapterNumber >= totalTargetChapters;
+  const leadAnchors = Array.isArray(lead.appearanceTags) ? lead.appearanceTags.join(', ') : lead.visualProfile?.appearanceTags?.join(', ') || 'curly hair, cheerful jacket, boots';
+  const companionAnchors = companion ? (Array.isArray(companion.appearanceTags) ? companion.appearanceTags.join(', ') : companion.visualProfile?.appearanceTags?.join(', ') || 'striped hat, shoulder bag') : '';
 
-  const titles = [
-    `The Threshold of ${lead.name}'s Awakening`,
-    `Shadows Across the ${genre.toUpperCase()} Horizon`,
-    `The Echo in the Crucible`,
-    `The Confluence of Destiny`,
-  ];
+  const total = Math.max(totalTargetChapters || 8, 1);
+  const progressRatio = chapterNumber / total;
+  const isFinal = chapterNumber >= total;
 
-  const chapterTitle = titles[Math.min(chapterNumber - 1, titles.length - 1)] || `Chapter ${chapterNumber}: The Turning Tide`;
+  // Dynamic Camera Framing cycle
+  const cameraAngles = ['Wide eye-level landscape shot', 'Dynamic low-angle action perspective', 'Intimate expressive close-up', 'Soaring bird-eye aerial view', 'Medium side-profile tracking shot'];
+  const currentFraming = cameraAngles[(chapterNumber - 1) % cameraAngles.length];
 
+  // 5-Stage Story Arc Builder for Procedural Content
+  let stageTitle = `Page ${chapterNumber}: `;
   let content = '';
+
   if (chapterNumber === 1) {
-    content = `The morning broke with an uneasy luminescence over the uncharted frontiers. ${lead.name}, known among whispers as ${lead.titleOrRole}, tightened the grip on their ${lead.signatureItem || 'cherished token'}. The warning bells had ceased, leaving behind an eerie stillness that smelled faintly of ozone and ancient parchment.\n\n` +
-      `"${synopsis || 'The anomaly has awakened,'}" murmured ${lead.name}, studying the strange geometric fissures expanding across the ground. ${companion ? `${companion.name} stepped forward, their eyes scanning the shifting horizon with guarded skepticism. "If we proceed beyond this boundary, there is no turning back."` : 'Every instinct urged caution, yet the threshold beckoned with undeniable gravity.'}\n\n` +
-      `With every step, the reality of their quest sharpened. The mystery was no longer a distant rumor—it was pulsing right beneath their feet, demanding an immediate decision.`;
-  } else if (isFinal) {
-    content = `The culmination of their journey gathered in an incandescent vortex. Following ${chosenChoiceAction || 'their courageous path'}, ${lead.name} confronted the heart of the enigma. The chamber resonated with harmonic vibrations, unlocking secrets long thought buried in myth.\n\n` +
-      `"${lead.name}!" called out ${companion ? companion.name : 'a voice through the ether'}, as the final threshold illuminated the path ahead. The choice was laid bare: reshape the destiny of the realm or seal away the forbidden power forever.\n\n` +
-      `With resolute conviction, ${lead.name} channeled their ${lead.signatureItem || 'artifact'}, sealing their chronicle into legend.`;
+    stageTitle += `The Unexpected Disruption`;
+    content = `The dawn broke in pale gold hues over the edge of the ${genre} horizon. ${lead.name}, carrying their trusty ${lead.signatureItem || 'map'}, noticed something unusual right outside the doorstep: ${synopsis || 'a strange humming mechanical gear buried in the garden soil'}.\n\n` +
+      `"Look at this," ${lead.name} called out, brushing off dust to reveal intricate gearwork. ${companion ? `${companion.name} leaned closer, adjusting their glasses. "That doesn't belong to any machine in our town."` : 'The gear clicked twice, spinning in reverse.'}\n\n` +
+      `With a quiet spark of determination, ${lead.name} picked up the artifact. The adventure had officially begun.`;
+  } else if (progressRatio <= 0.35) {
+    stageTitle += `Escalating Obstacles`;
+    content = `The path leading into the heart of the ${genre} territory grew steep and treacherous. Rain began to drizzle, turning the winding stone path into slick clay. ${chosenChoiceAction ? `Following their decision to ${chosenChoiceAction.toLowerCase()}, ` : ''}${lead.name} tested every foothold carefully.\n\n` +
+      `"We need a lever to clear these fallen fallen branches," ${lead.name} urged. ${companion ? `${companion.name} unhooked a sturdy cord from their pack, looping it around a heavy timber.` : 'Searching the thicket, a fallen sturdy bough offered just the leverage needed.'}\n\n` +
+      `Working with precise care, they cleared the passage, discovering fresh tracks pressed deep into the muddy ground ahead.`;
+  } else if (progressRatio <= 0.65) {
+    stageTitle += `The Midpoint Realization`;
+    content = `High atop the observation crag, the full layout of the challenge was revealed. The clue they had been tracking wasn't a random occurrence—it led straight toward a central hub powering the entire valley's water network.\n\n` +
+      `"${lead.name}, look!" ${companion ? `${companion.name} pointed toward a giant copper water wheel jammed with debris.` : `${lead.name} realized why the valley streams had dried up.`} "It's not broken—it's blocked!"\n\n` +
+      `Instead of turning back, ${lead.name} pulled out their ${lead.signatureItem || 'tool kit'}, realizing that fixing the mechanism required careful timing rather than brute force.`;
+  } else if (progressRatio < 1.0) {
+    stageTitle += `The Clever Climax`;
+    content = `Wind howled across the high platform as the final gears clattered into alignment. With only moments remaining before the pressure valve overflowed, ${lead.name} had to make a decisive move.\n\n` +
+      `"Hold the line steady!" ${lead.name} shouted over the rush of air, aligning their ${lead.signatureItem || 'key piece'} into the central axle while ${companion ? companion.name : 'holding the tension lever with both hands'}.\n\n` +
+      `With a satisfying *CLACK*, the heavy locks disengaged. The water gushed freely, illuminating the entire structure in warm golden light.`;
   } else {
-    content = `The repercussions of ${chosenChoiceAction || 'their previous actions'} reverberated across the terrain. ${lead.name} navigated the treacherous crossing, where ancient mechanisms clattered to life in response to their presence.\n\n` +
-      `"Watch your step," ${companion ? `${companion.name} cautioned, pointing toward the pulsating glyphs on the stone arches.` : 'a whisper in the wind seemed to warn.'} The air grew heavy with anticipation as an unexpected discovery emerged from the shadows.\n\n` +
-      `A hidden chamber lay revealed, presenting a dilemma that would test the resolve of everyone involved.`;
+    stageTitle += `A Satisfying New Dawn`;
+    content = `As the sun dipped below the mountain ridge, the quiet hum of the restored valley echoed with peaceful harmony. ${lead.name} sat beside the clear stream, washing the grease and soil from their hands.\n\n` +
+      `"${companion ? `${companion.name} handed ${lead.name} a warm flask of tea with a wide smile.` : `${lead.name} pocketed the restored mechanism, feeling the steady heartbeat of a solved mystery.`}" We did it.\n\n` +
+      `The stars began to bloom across the evening sky, marking the triumphant conclusion of a journey built on curiosity and patience.`;
   }
 
-  const illustrationPrompt = `${lead.name} the ${lead.titleOrRole}, standing dramatically in a ${genre} setting, atmospheric lighting, ${artStyle} art style, intricate details, cinematic perspective`;
+  const illustrationPrompt = `Art Style: ${artStyle.includes('vector') ? 'Flat Cartoon Vector' : 'Pixar 3D Render'}. Scene Details: ${lead.name} in action during page ${chapterNumber} of ${bookTitle}, expressive body language. Visual Anchors: ${lead.name} (${leadAnchors})${companion ? `, ${companion.name} (${companionAnchors})` : ''}. Environment & Lighting: ${genre} setting, warm atmospheric lighting, rich color palette. Camera Framing: ${currentFraming}.`;
 
   const choices = isFinal
     ? [
         {
           id: 'c_conclude_heroic',
-          label: 'Embrace the new dawn as guardians',
-          actionDescription: `${lead.name} accepts the mantle and establishes lasting harmony.`,
-          consequenceHint: 'Brings peaceful resolution and celebrated legacy.',
+          label: 'Reflect on the journey and close the book',
+          actionDescription: `${lead.name} celebrates with friends.`,
+          consequenceHint: 'Concludes this magical storybook chronicle.',
           riskLevel: 'safe',
         },
       ]
     : [
         {
           id: `c_${chapterNumber}_bold`,
-          label: `Press onward into the core sanctuary`,
-          actionDescription: `${lead.name} leads the advance directly toward the pulsating anomaly.`,
-          consequenceHint: 'High stakes and immediate confrontation with unknown forces.',
-          riskLevel: 'perilous',
+          label: `Press onward along the upper path`,
+          actionDescription: `${lead.name} leads the way forward carefully.`,
+          consequenceHint: 'Advances to the next stage of the journey.',
+          riskLevel: 'balanced',
         },
         {
           id: `c_${chapterNumber}_tactical`,
-          label: `Decipher the ancient glyphs and formulate a strategy`,
-          actionDescription: `Carefully study the chamber mechanisms before proceeding.`,
-          consequenceHint: 'Reveals hidden lore and safer routes through the labyrinth.',
-          riskLevel: 'balanced',
+          label: `Examine the surroundings for hidden clues`,
+          actionDescription: `Study the environment before stepping ahead.`,
+          consequenceHint: 'Reveals clever insights about the path ahead.',
+          riskLevel: 'safe',
         },
       ];
 
   return {
-    title: chapterTitle,
-    summary: `Chapter ${chapterNumber} of ${bookTitle}: The party confronts unexpected revelations.`,
+    chapterNumber,
+    title: stageTitle,
+    summary: `Page ${chapterNumber} of ${bookTitle}: ${lead.name} advances through ${stageTitle}.`,
     content,
     illustrationPrompt,
     choices,
     memoryUpdate: {
-      newItems: [`Artifact of Chapter ${chapterNumber}`],
-      tensionShift: `${lead.name}'s resolve deepens`,
-      clueDiscovered: `A piece of the overarching enigma falls into place`,
-      worldStateChanges: [`Chapter ${chapterNumber} concluded`],
+      newItems: [`Page ${chapterNumber} Milestone Token`],
+      tensionShift: `${lead.name}'s progress deepens`,
+      clueDiscovered: `Key insight on page ${chapterNumber}`,
+      worldStateChanges: [`Page ${chapterNumber} resolved`],
     },
   };
 }
@@ -227,25 +334,38 @@ async function generateCloudflareImage(prompt: string, options: { width?: number
   const customWorkerUrl = process.env.CLOUDFLARE_AI_WORKER_URL;
 
   // Custom worker URL invocation if user deployed an AI Worker proxy
-  if (customWorkerUrl) {
-    try {
-      const resp = await fetch(customWorkerUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prompt, width: options.width, height: options.height }),
-      });
-      if (resp.ok) {
-        const contentType = resp.headers.get('content-type') || '';
-        if (contentType.includes('image/')) {
-          const arrayBuffer = await resp.arrayBuffer();
-          const base64 = Buffer.from(arrayBuffer).toString('base64');
-          return `data:${contentType};base64,${base64}`;
+  if (customWorkerUrl && typeof customWorkerUrl === 'string') {
+    let validWorkerUrl: string | null = null;
+    const trimmed = customWorkerUrl.trim();
+    if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
+      validWorkerUrl = trimmed;
+    } else {
+      const match = trimmed.match(/https?:\/\/[^\s"']+/);
+      if (match) validWorkerUrl = match[0];
+    }
+
+    if (validWorkerUrl) {
+      try {
+        const resp = await fetch(validWorkerUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ prompt, width: options.width, height: options.height }),
+        });
+        if (resp.ok) {
+          const contentType = resp.headers.get('content-type') || '';
+          if (contentType.includes('image/')) {
+            const arrayBuffer = await resp.arrayBuffer();
+            const base64 = Buffer.from(arrayBuffer).toString('base64');
+            return `data:${contentType};base64,${base64}`;
+          }
+          const data = await resp.json();
+          if (data.imageUrl || data.image) return data.imageUrl || data.image;
         }
-        const data = await resp.json();
-        if (data.imageUrl || data.image) return data.imageUrl || data.image;
+      } catch (e) {
+        console.warn('Cloudflare custom worker note:', e);
       }
-    } catch (e) {
-      console.warn('Cloudflare custom worker note:', e);
+    } else {
+      console.warn('CLOUDFLARE_AI_WORKER_URL is not a valid HTTP/HTTPS URL, skipping direct fetch.');
     }
   }
 
@@ -262,19 +382,35 @@ async function generateCloudflareImage(prompt: string, options: { width?: number
   for (const model of cfModels) {
     try {
       const url = `https://api.cloudflare.com/client/v4/accounts/${accountId}/ai/run/${model}`;
-      const resp = await fetch(url, {
+      
+      // Build schema-compliant payload depending on Cloudflare model specs
+      let requestBody: Record<string, any> = { prompt };
+      if (!model.includes('flux-1-schnell')) {
+        requestBody.num_steps = options.steps || 20;
+        requestBody.width = options.width || 1024;
+        requestBody.height = options.height || 576;
+      }
+
+      let resp = await fetch(url, {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${apiToken}`,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          prompt,
-          num_steps: options.steps || 4,
-          width: options.width || 1024,
-          height: options.height || 576,
-        }),
+        body: JSON.stringify(requestBody),
       });
+
+      // Retry with minimal payload { prompt } if model returns 400 schema error
+      if (resp.status === 400 && Object.keys(requestBody).length > 1) {
+        resp = await fetch(url, {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${apiToken}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ prompt }),
+        });
+      }
 
       if (resp.ok) {
         const contentType = resp.headers.get('content-type') || 'image/png';
@@ -753,32 +889,24 @@ ${moralLesson ? `- Core Moral Value to naturally weave into this chapter: "${mor
 `;
     }
 
-    const systemInstruction = `You are the lead narrative architect of MilousGem, an AI storytelling engine designed for exquisite, non-repetitive literature.
+    const systemInstruction = `${MASTER_STORY_SYSTEM_PROMPT}
+
 CRITICAL ANTI-REPETITION MANDATES:
-1. NEVER use generic clichés ("Little did they know", "A shiver ran down their spine", "Suddenly without warning", "Time seemed to stop", "He couldn't help but feel").
-2. Fresh pacing: Chapter ${chapterNumber} of ${totalTargetChapters}. ${
-      chapterNumber === 1
-        ? 'Inciting incident with sensory immersion, immediate stakes, character banter, and flaw displays.'
-        : isFinalChapter
-        ? 'Climactic confrontation and emotional resolution that pays off earlier clues and character tensions without neat cop-outs.'
-        : 'Escalating conflict, unexpected tactical pivot, moral dilemma, and discovery that complicates the objective.'
-    }
-3. Character voice fidelity: Ensure all cast members (${cast.map((c: any) => c.name).join(', ') || 'cast'}) interact with genuine chemistry, conflicting motives, and distinctive dialogue cadences.
-4. Memory consistency: Directly reference active inventory items (${plotMemory.activeInventory?.join(', ') || 'none'}), past decisions (${plotMemory.keyDecisions?.slice(-2).join('; ') || 'none'}), and tensions (${plotMemory.characterTensions?.slice(-2).join('; ') || 'none'}).
-5. High Entropy (${entropyLevel}): Introduce unexpected sensory motifs, genre trope inversions, and fresh atmospheric worldbuilding details.
-6. Write rich, captivating prose (${isChildrenStory ? '250-400 words' : '350-550 words'}) formatted in 3-4 distinct paragraphs with natural dialogue and vivid scene action.
+1. NEVER use generic clichés ("Little did they know", "A shiver ran down their spine", "Suddenly without warning", "Time seemed to stop").
+2. Fresh pacing for Chapter ${chapterNumber} of ${totalTargetChapters}.
+3. Character voice fidelity for cast members (${cast.map((c: any) => c.name).join(', ') || 'cast'}).
+4. Write rich, captivating prose formatted in 3-4 distinct paragraphs.
 ${audienceInstructions}`;
 
-    const userPrompt = `Generate Chapter ${chapterNumber} for the book:
+    const userPrompt = `Generate Chapter ${chapterNumber} of ${totalTargetChapters} for the book:
 Book Title: "${bookTitle}"
-Genre: ${genre}
+Genre / Subgenre Mashup: ${genre}
 Tone: ${tone}
-Overarching Synopsis: ${synopsis}
-Target Audience: ${targetAudience}
-${isKidsMode ? 'Mode: KIDS & FAMILY STORYBOOK' : ''}
-${moralLesson ? `Moral Lesson Theme: ${moralLesson}` : ''}
+Target Age Range: ${targetAudience}
+Art Style Choice: ${artStyle}
+Overarching Story Premise: ${synopsis}
 
-CAST MEMBERS (Integrate all selected characters dynamically):
+CUSTOM CHARACTER SPECS (Integrate all selected characters dynamically with Visual Anchors):
 ${castSummary || 'Protagonist embarking on the journey'}
 
 PREVIOUS EVENTS SUMMARY:
@@ -788,28 +916,25 @@ PLAYER'S RECENT DECISION / DIRECTION:
 ${chosenChoiceAction ? `Protagonist action taken: "${chosenChoiceAction}"` : 'Establish the opening situation and urgent goal.'}
 ${customAuthorDirection ? `Special author prompt: "${customAuthorDirection}"` : ''}
 
-CURRENT PLOT MEMORY:
-- Inventory: ${JSON.stringify(plotMemory.activeInventory || [])}
-- Active Tensions: ${JSON.stringify(plotMemory.characterTensions || [])}
-- Clues/Foreshadowing: ${JSON.stringify(plotMemory.foreshadowedClues || [])}
-- World State: ${JSON.stringify(plotMemory.worldStateChanges || [])}
-
 Provide:
-1. Chapter title (evocative, poetic or thrilling)
+1. Chapter title (evocative and unique)
 2. Chapter summary (1-2 sentences)
-3. Chapter prose content (${isChildrenStory ? '250-400 words' : '350-550 words'} of atmospheric narrative with dialogue between cast members)
-4. A vivid, highly specific illustration prompt for this exact moment (including art style "${artStyle}", character visual tokens for ${cast.map((c: any) => c.name).join(', ')}, camera angle, lighting, colors${isChildrenStory ? ', friendly joyful atmosphere, children picturebook composition' : ''})
-5. ${isFinalChapter ? '1-2 concluding reflections or epilogue choices' : '2-3 diverse, branching choices for the reader with clear stakes and consequence hints'}
-6. Memory updates: newly gained items, shifted tensions, and clues discovered to ensure non-repetition in future chapters.`;
+3. Chapter prose content (complete unique narrative prose for this page)
+4. illustrationPrompt formatted strictly as:
+   Art Style: [${artStyle}]
+   Scene Details: [Action, body language, facial expression]
+   Visual Anchors: [Exact visual specs of custom character(s)]
+   Environment & Lighting: [Setting details, light source, color scheme]
+   Camera Framing: [Angle, shot type, focal perspective]
+5. ${isFinalChapter ? '1-2 concluding reflections' : '2-3 diverse, branching choices for the reader'}
+6. Memory updates to ensure non-repetition in future chapters.`;
 
-    // Try primary Gemini API
+    // Try primary Gemini API with resilient model cascading
     try {
-      const ai = getGeminiClient();
-      const response = await ai.models.generateContent({
-        model: 'gemini-3.7-flash',
+      const response = await callGeminiContentResilient({
         contents: userPrompt,
+        systemInstruction,
         config: {
-          systemInstruction,
           responseMimeType: 'application/json',
           responseSchema: {
             type: Type.OBJECT,
@@ -851,7 +976,7 @@ Provide:
             required: ['title', 'summary', 'content', 'illustrationPrompt', 'choices'],
           },
         },
-      });
+      }, 'gemini-2.5-flash');
 
       const parsed = extractJSON(response.text || '{}');
       return res.json({ success: true, chapter: parsed, provider: 'gemini' });
@@ -943,35 +1068,40 @@ ${moralLesson ? `- Core Moral Value to weave through the arc: "${moralLesson}". 
 `;
     }
 
-    const systemInstruction = `You are the lead narrative architect of MilousGem. Generate a COMPLETE ${pageCount}-page illustrated storybook with engaging prose for each page/chapter.
-Every page must have:
-- chapterNumber (1 to ${pageCount})
-- title (evocative page title)
-- summary (1 sentence scene overview)
-- content (rich, engaging story prose for this page, with dialog and vivid sensory descriptions)
-- illustrationPrompt (detailed prompt to generate a 3D Pixar-style children's book scene illustration showing the characters in soft magical lighting)
-- choices (2 interesting story paths, though the narrative continues smoothly)
+    const systemInstruction = `${MASTER_STORY_SYSTEM_PROMPT}
+
+You are generating a COMPLETE ${pageCount}-page illustrated storybook titled "${bookTitle}".
+CRITICAL DIRECTIVES FOR COMPLETE BOOK GENERATION:
+- Structural Progression Across ${pageCount} Pages:
+  Stage 1 (Page 1..${Math.ceil(pageCount/4)}): Inciting disruption to status quo.
+  Stage 2 (Page ${Math.ceil(pageCount/4)+1}..${Math.ceil(pageCount/2)}): Escalating physical or logistical obstacles.
+  Stage 3 (Page ${Math.ceil(pageCount/2)+1}..${Math.ceil(3*pageCount/4)}): Midpoint realization or strategy shift.
+  Stage 4 (Page ${Math.ceil(3*pageCount/4)+1}..${pageCount-1}): Climax requiring character growth or clever resourcefulness.
+  Stage 5 (Page ${pageCount}): Satisfying resolution (NO moralizing summary sentences at the end).
+- ABSOLUTE NON-REPETITION: Every page MUST have distinct, unique narrative text advancing the plot. NEVER repeat identical sentence templates or filler paragraphs.
+- ILLUSTRATION PROMPT PROTOCOL: Each page illustrationPrompt must include Art Style, Scene Details, Visual Anchors (exact visual specs of custom characters), Environment & Lighting, and Camera Framing (shifting perspective across pages).
 `;
 
     try {
-      const ai = getGeminiClient();
-      const response = await ai.models.generateContent({
-        model: 'gemini-3.7-flash',
+      const response = await callGeminiContentResilient({
         contents: [
           {
             text: `Create a complete ${pageCount}-page storybook titled "${bookTitle}".
-Synopsis: ${synopsis}
-Genre: ${genre}
+Target Age Range: ${targetAudience}
+Art Style Choice: ${artStyle}
+Genre / Subgenre Mashup: ${genre}
+Story Premise / Conflict: ${synopsis}
 Tone: ${tone}
-Art Style: ${artStyle}
 ${audienceInstructions}
-Cast Profiles:
+
+CUSTOM CHARACTER SPECS:
 ${castSummary || 'Protagonist exploring a magical world'}
-Return an array of ${pageCount} chapters representing the complete story arc from beginning to climax and joyful resolution.`,
+
+Generate an array of ${pageCount} chapters representing the complete 5-stage story arc with unique, non-repetitive prose on every single page.`,
           },
         ],
+        systemInstruction,
         config: {
-          systemInstruction,
           responseMimeType: 'application/json',
           responseSchema: {
             type: Type.OBJECT,
@@ -995,7 +1125,7 @@ Return an array of ${pageCount} chapters representing the complete story arc fro
             required: ['chapters'],
           },
         },
-      });
+      }, 'gemini-2.5-flash');
 
       const parsed = extractJSON(response.text || '{}');
       const chapters = Array.isArray(parsed.chapters) && parsed.chapters.length > 0
@@ -1006,25 +1136,104 @@ Return an array of ${pageCount} chapters representing the complete story arc fro
         return res.json({ success: true, chapters, provider: 'gemini' });
       }
     } catch (llmErr) {
-      console.warn('Full book LLM generation note, synthesizing chapters:', llmErr);
+      console.warn('Full book LLM generation note, synthesizing non-repetitive procedural chapters:', llmErr);
     }
 
-    // Procedural fallback for full book
+    // High-quality procedural fallback for full book (guarantees EVERY page is unique!)
     const proceduralChapters = Array.from({ length: pageCount }).map((_, idx) => {
       const chNum = idx + 1;
-      return {
+      return generateProceduralChapter({
+        bookTitle,
+        synopsis,
+        genre,
+        tone,
+        artStyle,
+        cast,
         chapterNumber: chNum,
-        title: `Chapter ${chNum}: ${chNum === 1 ? 'The Beginning of the Journey' : chNum === pageCount ? 'The Warm Farewell & Return' : 'A Wonderful Discovery Along the Trail'}`,
-        summary: `Page ${chNum} of the journey through the ${genre} realm.`,
-        content: `As chapter ${chNum} unfolded, ${cast[0]?.name || 'our little hero'} marveled at the shimmering wonders around every corner. With gentle courage and kind friends, every step brought warmth and excitement into the adventure.`,
-        illustrationPrompt: `3D animated Pixar-style children's book illustration, ${cast[0]?.visualProfile?.artisticStylePrompt || cast[0]?.name || 'hero'}, magical whimsical story scene in chapter ${chNum}, soft glowing lighting`,
-      };
+        totalTargetChapters: pageCount,
+        targetAudience,
+      });
     });
 
     return res.json({ success: true, chapters: proceduralChapters, provider: 'procedural-full-book' });
   } catch (error: any) {
     console.error('Error in /api/story/generate-full-book:', error);
     return res.status(500).json({ error: error.message || 'Failed to generate full book' });
+  }
+});
+
+// Endpoint: Premise Generation Protocol (Generate 3 high-concept story premises based on age range & subgenre mashups)
+app.post('/api/story/generate-premises', async (req, res) => {
+  try {
+    const { ageRange = '5-7', genreMashup = 'Solarpunk + Cozy Culinary Mystery', cast = [] } = req.body;
+
+    const prompt = `You are a master story strategist for children's books.
+Follow the PREMISE GENERATION PROTOCOL:
+Generate 3 unique story ideas adhering strictly to these criteria:
+1. Clear External Motivation: The main character must have a specific, concrete goal (e.g. repairing an object, solving an environmental riddle, retrieving a missing item).
+2. No Magic Fixes: The conflict must be solvable using logic, resourcefulness, tool-use, or emotional growth—never instant magic powders or deus-ex-machina rescues.
+3. Environmental Tension: The setting itself must present natural obstacles (weather, scale, mechanical limits, time constraints).
+4. Zero Clichés: Avoid glowing crystals, talking forest elders, lost royal heirlooms, or vague "saving the world" stakes.
+
+Parameters:
+Target Age Range: ${ageRange}
+Genre / Subgenre Mashup: ${genreMashup}
+Cast Specs: ${cast.map((c: any) => `${c.name} (${c.titleOrRole || 'Hero'})`).join(', ')}
+
+Return a JSON object with a 'premises' array containing 3 objects with 'title' and 'synopsis'.`;
+
+    try {
+      const response = await callGeminiContentResilient({
+        contents: prompt,
+        config: {
+          responseMimeType: 'application/json',
+          responseSchema: {
+            type: Type.OBJECT,
+            properties: {
+              premises: {
+                type: Type.ARRAY,
+                items: {
+                  type: Type.OBJECT,
+                  properties: {
+                    title: { type: Type.STRING },
+                    synopsis: { type: Type.STRING },
+                  },
+                  required: ['title', 'synopsis'],
+                },
+              },
+            },
+            required: ['premises'],
+          },
+        },
+      }, 'gemini-2.5-flash');
+
+      const parsed = extractJSON(response.text || '{}');
+      if (Array.isArray(parsed.premises) && parsed.premises.length > 0) {
+        return res.json({ success: true, premises: parsed.premises, provider: 'gemini' });
+      }
+    } catch (e: any) {
+      console.warn('Premise generation fallback note:', e?.message);
+    }
+
+    // Fallback premises adhering to Premise Generation Protocol
+    const fallbackPremises = [
+      {
+        title: `The Water-Wheel Riddle of Greenhaven`,
+        synopsis: `When a mysterious clogged valve halts the community hydroponic farm, ${cast[0]?.name || 'the young inventor'} must navigate high water pressures and construct a bamboo siphon before nightfall.`,
+      },
+      {
+        title: `The Lost Blueprint of the Sky-Sail`,
+        synopsis: `An unexpected storm tears the primary canvas on the local airship cargo carrier. ${cast[0]?.name || 'Our hero'} uses recycled sailcloth and aerodynamic folding to restore flight stability.`,
+      },
+      {
+        title: `The Mystery of the Silent Clocktower`,
+        synopsis: `A tiny brass gear slips out of the central clock tower during the town festival. ${cast[0]?.name || 'The protagonist'} tracks environmental clues through rain-slicked cobbled alleys to rebuild the escapement mechanism.`,
+      },
+    ];
+
+    return res.json({ success: true, premises: fallbackPremises, provider: 'procedural-fallback' });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || 'Failed to generate premises' });
   }
 });
 
@@ -1055,12 +1264,10 @@ Special focus for ${targetLanguage}:
 Return a JSON object matching the requested schema.`;
 
     try {
-      const ai = getGeminiClient();
-      const response = await ai.models.generateContent({
-        model: 'gemini-3.7-flash',
+      const response = await callGeminiContentResilient({
         contents: `Translate the following story into ${targetLanguage}:\n\nTitle: "${title}"\nSummary: "${summary}"\n\nStory Prose:\n${content}`,
+        systemInstruction,
         config: {
-          systemInstruction,
           responseMimeType: 'application/json',
           responseSchema: {
             type: Type.OBJECT,
@@ -1073,7 +1280,7 @@ Return a JSON object matching the requested schema.`;
             required: ['translatedTitle', 'translatedContent', 'targetLanguage'],
           },
         },
-      });
+      }, 'gemini-2.5-flash');
 
       const parsed = extractJSON(response.text || '{}');
       return res.json({
@@ -1145,12 +1352,10 @@ Cast Members: ${cast.map((c: any) => `${c.name} (${c.titleOrRole || c.role})`).j
 Synopsis & History: ${synopsis} ${chaptersSummary}`;
 
     try {
-      const ai = getGeminiClient();
-      const response = await ai.models.generateContent({
-        model: 'gemini-3.7-flash',
+      const response = await callGeminiContentResilient({
         contents: userPrompt,
+        systemInstruction,
         config: {
-          systemInstruction,
           responseMimeType: 'application/json',
           responseSchema: {
             type: Type.OBJECT,
@@ -1163,7 +1368,7 @@ Synopsis & History: ${synopsis} ${chaptersSummary}`;
             required: ['blurb', 'castTeaser', 'thematicTags'],
           },
         },
-      });
+      }, 'gemini-2.5-flash');
 
       const parsed = extractJSON(response.text || '{}');
       return res.json({ success: true, ...parsed, provider: 'gemini' });

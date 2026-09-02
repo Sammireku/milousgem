@@ -125,3 +125,11 @@ class StoryNarrationManager {
 }
 
 export const narrator = new StoryNarrationManager();
+
+export function speakText(text: string, options: { rate?: number; pitch?: number; lang?: string } = {}) {
+  narrator.speak(text, options);
+}
+
+export function stopSpeaking() {
+  narrator.stop();
+}

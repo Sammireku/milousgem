@@ -319,3 +319,20 @@ export const INITIAL_PRESET_CHARACTERS: Character[] = [
 ];
 
 export const SAMPLE_INITIAL_BOOKS: StoryBook[] = [];
+
+export const TARGET_AGE_RANGES = [
+  { id: '2-4', label: 'Ages 2–4 (Toddler / Early Emergent)', description: 'High rhythm, sensory discovery, short sentences (3–8 words), physical/tactile actions.' },
+  { id: '5-7', label: 'Ages 5–7 (Early Reader / Picture Book)', description: 'Playful dialogue, clear cause-and-effect, simple compound sentences, visual momentum.' },
+  { id: '8-10', label: 'Ages 8–10 (Middle Grade / Chapter Book)', description: 'Internal vs. external conflict, friendship dynamics, clever problem-solving, worldbuilding logic.' },
+  { id: '11-13', label: 'Ages 11–13 (Upper Middle Grade / Early Teen)', description: 'Complex morality, identity formation, fast action balanced with inner monologue.' },
+  { id: '14+', label: 'Young Adult (YA - Ages 14+)', description: 'Deep character arcs, philosophical questions, sophisticated sub-genres, high emotional resonance.' },
+];
+
+export const SUBGENRE_MASHUPS = [
+  { id: 'solarpunk_culinary', name: 'Solarpunk + Cozy Culinary Mystery', description: 'Bioluminescent community gardens, solar ovens, and missing heirloom recipes.' },
+  { id: 'silkpunk_micro', name: 'Silkpunk + Micro-Scale Adventure', description: 'Bamboo airships, clockwork beetles, and journeys through giant lotus gardens.' },
+  { id: 'gaslamp_maritime', name: 'Gaslamp Fantasy + Maritime Expedition', description: 'Foggy harbor docks, copper-clad sub-surface boats, and chart room mysteries.' },
+  { id: 'arcanepunk_ecofiction', name: 'Arcanepunk / Clockwork + Eco-Fiction', description: 'Restoring balance to mechanical rainforests and river siphons.' },
+  { id: 'folklore_retro', name: 'Folklore Noir + Historical Invention', description: 'Vintage inventions meeting ancient mythical riddle guardians.' },
+  { id: 'space_sliceoflife', name: 'Space Western + Slice-of-Life', description: 'Cozy hydroponic station diners on the rim of the asteroid belt.' },
+];

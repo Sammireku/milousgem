@@ -197,59 +197,39 @@ export const StoryCreator: React.FC<StoryCreatorProps> = ({
     }
   };
 
-  const handleSparkPremise = () => {
-    const genreDef = GENRE_PRESETS.find((g) => g.id === selectedGenre) || GENRE_PRESETS[0];
-    const protagonist = selectedCast[0] || characters[0];
-    const companion = selectedCast[1];
+  const [isSparkingPremises, setIsSparkingPremises] = useState<boolean>(false);
+  const [suggestedPremises, setSuggestedPremises] = useState<{ title: string; synopsis: string }[]>([]);
 
-    if (isKidsMode) {
-      const activeMoral = KIDS_MORAL_THEMES.find((m) => m.id === moralLesson)?.label || 'Kindness & Teamwork';
-      const kidsSparks = [
-        {
-          title: `${protagonist?.name || 'Barnaby'} and the Whispering Cloud`,
-          synopsis: `When a little cloud loses its rainbow colors, ${protagonist?.name || 'the young explorer'} sets out on a gentle quest to help it smile again. A heartwarming tale exploring ${activeMoral.toLowerCase()}.`,
-        },
-        {
-          title: `The Mystery of the Starlight Tree`,
-          synopsis: `${protagonist?.name || 'Pip'} discovers that the glowing leaves on the ancient playground oak are dimming. ${companion ? `With ${companion.name}'s help, ` : ''}they gather starry dew and learn that sharing sparks the brightest light.`,
-        },
-        {
-          title: `${protagonist?.name || 'Luna'} & the Lost Moonbeam`,
-          synopsis: `A sleepy moonbeam tumbles into the cozy forest just before bedtime. ${protagonist?.name || 'Our hero'} helps guide it back up to the night sky while making wonderful animal friends.`,
-        },
-        {
-          title: `The Secret Garden of ${protagonist?.name || 'Wonders'}`,
-          synopsis: `Behind the garden gate lies a colorful realm where listening closely and showing kindness to the smallest creatures unlocks magnificent surprises.`,
-        },
-      ];
-      const chosen = kidsSparks[Math.floor(Math.random() * kidsSparks.length)];
-      setTitle(chosen.title);
-      setSynopsis(chosen.synopsis);
-      return;
+  const handleSparkPremise = async () => {
+    setIsSparkingPremises(true);
+    try {
+      const res = await fetch('/api/story/generate-premises', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ageRange: targetAudience || (isKidsMode ? '5-7' : '11-13'),
+          genreMashup: selectedGenre,
+          cast: selectedCast,
+        }),
+      });
+      const data = await res.json();
+      if (data.success && Array.isArray(data.premises) && data.premises.length > 0) {
+        setSuggestedPremises(data.premises);
+        const chosen = data.premises[0];
+        setTitle(chosen.title);
+        setSynopsis(chosen.synopsis);
+      } else {
+        const leadName = selectedCast[0]?.name || 'Milo';
+        setTitle(`The Water-Wheel Riddle of Greenhaven`);
+        setSynopsis(`When a clogged pressure valve halts the valley hydroponic farm, ${leadName} must decipher an intricate gear puzzle and build a bamboo siphon before dusk.`);
+      }
+    } catch (err) {
+      const leadName = selectedCast[0]?.name || 'Milo';
+      setTitle(`The Water-Wheel Riddle of Greenhaven`);
+      setSynopsis(`When a clogged pressure valve halts the valley hydroponic farm, ${leadName} must decipher an intricate gear puzzle and build a bamboo siphon before dusk.`);
+    } finally {
+      setIsSparkingPremises(false);
     }
-
-    const sparks = [
-      {
-        title: `The ${protagonist?.name || 'Wanderer'} & the Stolen Zenith`,
-        synopsis: `When the celestial alignment of the Zenith Gates unlocks a forbidden vault beneath the city, ${protagonist?.name || 'our hero'} must decipher a coded memory before rival syndicates weaponize it.`,
-      },
-      {
-        title: `Chronicles of the ${genreDef.name} Rift`,
-        synopsis: `An uncharted anomaly begins erasing the boundaries between past and future. Armed with ${protagonist?.signatureItem || 'a rare artifact'}, ${protagonist?.name || 'the protagonist'} embarks on a high-stakes quest across uncharted terrain.`,
-      },
-      {
-        title: `The Whisper in the Clockwork Core`,
-        synopsis: `${protagonist?.name} uncovers a subterranean machine that whispers secrets about ${protagonist?.flawOrSecret ? 'their deepest vulnerability' : 'the lost founders'}. ${companion ? `Alongside ${companion.name}, ` : ''}they must make a pivotal choice before midnight.`,
-      },
-      {
-        title: `Echoes of the Obsidian Crown`,
-        synopsis: `${genreDef.samplePromptSeed}`,
-      },
-    ];
-
-    const chosen = sparks[Math.floor(Math.random() * sparks.length)];
-    setTitle(chosen.title);
-    setSynopsis(chosen.synopsis);
   };
 
   const handleCreateAndWeave = async () => {

@@ -1,5 +1,6 @@
 import { Character, StoryBook, UserAccount } from '../types';
 import { INITIAL_PRESET_CHARACTERS, SAMPLE_INITIAL_BOOKS } from './presets';
+import { SoundscapeType } from './ambientSound';
 
 const STORAGE_KEYS = {
   USER: 'milousgem_user_v1',
@@ -34,6 +35,10 @@ export interface ReadingSettings {
   theme: 'natural_tones' | 'parchment' | 'forest_sage' | 'warm_terracotta' | 'slate_stone';
   colorPalette: 'classic_paper' | 'midnight_galaxy' | 'forest_dream';
   ambientSound: boolean;
+  soundscapeType?: SoundscapeType;
+  soundscapeVolume?: number;
+  bedtimeMode?: boolean;
+  interactiveVocab?: boolean;
   autoNarration: boolean;
   speechRate: number; // 0.8 to 1.3
   bookmarks: Record<string, number>;
@@ -56,6 +61,10 @@ export const DEFAULT_READING_SETTINGS: ReadingSettings = {
   theme: 'natural_tones',
   colorPalette: 'classic_paper',
   ambientSound: false,
+  soundscapeType: 'none',
+  soundscapeVolume: 0.35,
+  bedtimeMode: false,
+  interactiveVocab: true,
   autoNarration: false,
   speechRate: 1.0,
   bookmarks: {},
