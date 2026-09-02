@@ -26,13 +26,7 @@ interface ImageStudioProps {
 }
 
 const ART_STYLE_PRESETS: Array<{ id: StoryArtStyle; name: string; icon: string; promptSnippet: string }> = [
-  { id: 'cinematic_realism', name: 'Cinematic Realism', icon: '🎬', promptSnippet: 'cinematic lighting, ultra detailed 8k photography, realistic depth of field' },
-  { id: 'watercolor_storybook', name: 'Watercolor Storybook', icon: '🎨', promptSnippet: 'delicate watercolor illustration, storybook art, textured parchment wash' },
-  { id: 'studio_anime', name: 'Studio Anime', icon: '✨', promptSnippet: 'Makoto Shinkai anime aesthetic, luminous lighting, vibrant painted sky' },
-  { id: 'cyber_concept', name: 'Cyberpunk Concept', icon: '⚡', promptSnippet: 'cyberpunk concept art, volumetric neon mist, sleek chrome reflections' },
-  { id: 'gothic_oil', name: 'Gothic Oil Painting', icon: '🏛️', promptSnippet: 'dramatic gothic chiaroscuro oil painting, rich moody tones, Caravaggio lighting' },
-  { id: 'vintage_ink', name: 'Vintage Ink & Quill', icon: '🖋️', promptSnippet: 'antique copperplate crosshatching engraving, vintage archival illustration' },
-  { id: 'dreamy_pastel', name: 'Dreamy Pastel', icon: '🌸', promptSnippet: 'soft whimsical pastel tones, ethereal fantasy atmosphere' },
+  { id: 'hyper_articulated_realism' as any, name: '3D Pixar Animated Film (Standard)', icon: '🎬', promptSnippet: 'Pixar 3D animated film render, masterpiece 3D animation still, Physically-Based Rendering (PBR), micro-texture detail, subsurface scattering on skin, expressive stylized character design, warm cinematic volumetric studio lighting, rich vibrant color palette, octane render style' },
 ];
 
 export const ImageStudio: React.FC<ImageStudioProps> = ({
@@ -44,8 +38,8 @@ export const ImageStudio: React.FC<ImageStudioProps> = ({
   const [activeTab, setActiveTab] = useState<'create' | 'edit'>('create');
 
   // Create Mode States
-  const [createPrompt, setCreatePrompt] = useState('An ancient alchemist brewing glowing emerald elixirs in an overgrown greenhouse tower');
-  const [selectedStyle, setSelectedStyle] = useState<StoryArtStyle>('cinematic_realism');
+  const [createPrompt, setCreatePrompt] = useState('An adorable explorer character discovering a secret enchanted bioluminescent greenhouse');
+  const [selectedStyle, setSelectedStyle] = useState<StoryArtStyle>('hyper_articulated_realism' as any);
   const [aspectRatio, setAspectRatio] = useState<'1:1' | '16:9' | '9:16'>('16:9');
   const [batchCount, setBatchCount] = useState<number>(2);
   const [isGenerating, setIsGenerating] = useState<boolean>(false);

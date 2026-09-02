@@ -1645,6 +1645,33 @@ export const StoryReader: React.FC<StoryReaderProps> = ({
           </div>
         </div>
 
+        {/* Notice for placeholder or cover-duplicate images */}
+        {(() => {
+          const isCoverDuplicate = currentChapterIndex > 0 && currentChapter.imageUrl === book.coverImage;
+          const isCastAvatar = book.cast?.some((c) => c.visualProfile?.photoUrl && c.visualProfile.photoUrl === currentChapter.imageUrl);
+          const isPlaceholder = !currentChapter.imageUrl || isCoverDuplicate || isCastAvatar;
+
+          if (!isPlaceholder) return null;
+
+          return (
+            <div className="p-3.5 rounded-2xl bg-[#EAF0E8]/90 border border-[#D0E0CC] flex flex-wrap items-center justify-between gap-2 text-xs text-[#2D4523] shadow-xs">
+              <div className="flex items-center gap-2">
+                <Sparkles className="w-4 h-4 text-[#5B6B56] shrink-0" />
+                <span>This page is displaying a placeholder or cover image. Paint a dedicated illustration matching Chapter {currentChapter.chapterNumber}'s narrative!</span>
+              </div>
+              <button
+                id="paint-specific-scene-btn"
+                onClick={handleRegenerateSceneIllustration}
+                disabled={isRegeneratingImage}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#5B6B56] hover:bg-[#495745] text-white font-medium text-xs shadow-xs transition-colors cursor-pointer"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${isRegeneratingImage ? 'animate-spin' : ''}`} />
+                <span>{isRegeneratingImage ? 'Painting Scene...' : 'Paint Chapter Scene Art'}</span>
+              </button>
+            </div>
+          );
+        })()}
+
         {/* Context-Aware Scene Illustration Card */}
         {currentChapter.imageUrl && (
           <motion.div

@@ -275,6 +275,8 @@ function generateProceduralChapter(options: {
         `The morning sun washed over the ${genre} horizon in warm golden amber. ${lead.name}, gripping their signature ${lead.signatureItem || 'compass'}, spotted a strange shimmer resting near the trail. ${synopsis ? `It was connected to ${synopsis.toLowerCase()}.` : 'An ancient brass key marked with unknown glyphs clicked softly as it was touched.'}\n\n` +
         `"Look at this," ${lead.name} called out. ${companion ? `${companion.name} leaned closer, inspecting the intricate markings with wide eyes. "That isn't like anything in our local maps."` : 'The artifact hummed faintly, pointing toward the ridge.'}\n\n` +
         `With a surge of curiosity, ${lead.name} pocketed the discovery. The journey had officially begun.`,
+      getScenePrompt: (l: any, c: any, lAnchors: string, cAnchors: string) =>
+        `${l.name} (${lAnchors}) crouching beside a mossy trail in warm golden morning sunlight, gently picking up a glowing ancient brass key as ${c ? `${c.name} (${cAnchors}) watches closely with wide, curious eyes` : 'warm dust motes sparkle in the forest air'}.`,
     },
     {
       title: 'Stepping Beyond the Known',
@@ -282,6 +284,8 @@ function generateProceduralChapter(options: {
         `The path led into dense ${genre} territory, where the air grew cool and scented with pine and ozone. ${chosenChoiceAction ? `Having decided to ${chosenChoiceAction.toLowerCase()}, ` : ''}${lead.name} carefully guided the way across a footbridge spanning a rushing creek.\n\n` +
         `"Watch your step," ${lead.name} warned as mist gathered on the stones. ${companion ? `${companion.name} unhitched a braided rope from their pack to secure the trailing timber.` : 'A sudden flash of light bounced off a mossy stone ahead.'}\n\n` +
         `They pressed onward, leaving the familiar outskirts behind as the surroundings grew more mysterious.`,
+      getScenePrompt: (l: any, c: any, lAnchors: string, cAnchors: string) =>
+        `${l.name} (${lAnchors}) carefully guiding the way across a weathered rustic wooden footbridge spanning a roaring mountain creek, with ${c ? `${c.name} (${cAnchors}) holding a braided safety rope` : 'cool white mist swirling over wet river stones'} beneath tall towering pines.`,
     },
     {
       title: 'Unraveling the First Cipher',
@@ -289,6 +293,8 @@ function generateProceduralChapter(options: {
         `Near an overgrown archway, a sequence of copper dials blocked the narrow passage. ${lead.name} crouched down, studying the interlocking gears.\n\n` +
         `"It's an ancient locking mechanism," ${lead.name} noted, aligning the symbols. ${companion ? `${companion.name} held a glowing lantern steady, shining light directly onto the hidden keyhole.` : 'Using their trusty tools, every turn brought a deep metallic click.'}\n\n` +
         `With a soft sigh of releasing pressure, the heavy archway swung open, revealing an undiscovered valley beyond.`,
+      getScenePrompt: (l: any, c: any, lAnchors: string, cAnchors: string) =>
+        `${l.name} (${lAnchors}) kneeling before an ancient stone archway, turning interlocking glowing copper gears and dials as ${c ? `${c.name} (${cAnchors}) holds a warm brass lantern steady` : 'golden mechanical light illuminates carved stone glyphs'}.`,
     },
     {
       title: 'The Midpoint Challenge',
@@ -296,6 +302,8 @@ function generateProceduralChapter(options: {
         `High atop the observation crag, the true scale of the journey became clear. A vast network of ${genre} structures stretched across the canyon below, but the central conduit had stopped flowing.\n\n` +
         `"${lead.name}, over there!" ${companion ? `${companion.name} pointed toward a giant mechanical wheel caught in tangled vines.` : `${lead.name} realized the entire valley depended on restoring this gateway.`}\n\n` +
         `Realizing that brute force wouldn't work, ${lead.name} drew upon their ${lead.signatureItem || 'journal'}, mapping out a clever plan to clear the obstruction.`,
+      getScenePrompt: (l: any, c: any, lAnchors: string, cAnchors: string) =>
+        `${l.name} (${lAnchors}) standing high on a dramatic rocky cliff overlook, pointing down at a vast scenic canyon where a colossal ancient mechanical waterwheel is entangled in flowering ivy vines.`,
     },
     {
       title: 'A Test of Resourcefulness',
@@ -303,6 +311,8 @@ function generateProceduralChapter(options: {
         `Rushing water thundered down the stone chute as the team reached the lower pump house. ${chosenChoiceAction ? `By ${chosenChoiceAction.toLowerCase()}, ` : ''}${lead.name} secured a foothold near the vibrating central valve.\n\n` +
         `"Hold the line!" ${lead.name} called out over the roar. ${companion ? `${companion.name} braced the heavy lever with all their strength, giving ${lead.name} time to calibrate the gauge.` : 'Every movement required total focus and steady hands.'}\n\n` +
         `Together, they freed the primary intake, sending a fresh surge of power pulsing through the ancient conduits.`,
+      getScenePrompt: (l: any, c: any, lAnchors: string, cAnchors: string) =>
+        `${l.name} (${lAnchors}) and ${c ? `${c.name} (${cAnchors})` : 'companions'} bracing a giant iron pressure lever beside a roaring waterfall stone chute as brilliant blue energy surges through ancient copper conduits.`,
     },
     {
       title: 'Shadows in the Canyon',
@@ -310,6 +320,8 @@ function generateProceduralChapter(options: {
         `Twilight began to paint the sky in shades of violet and crimson. Deep inside the canyon, strange echoes bounced off the sheer cliff faces.\n\n` +
         `"Stay alert," whispered ${lead.name}, holding their ${lead.signatureItem || 'lantern'} high. ${companion ? `${companion.name} spotted a series of fresh footprints leading toward the high tower.` : 'A gentle breeze rustled the leaves, carrying the melody of distant music.'}\n\n` +
         `Rather than turning back, they gathered their courage and followed the trail upward.`,
+      getScenePrompt: (l: any, c: any, lAnchors: string, cAnchors: string) =>
+        `${l.name} (${lAnchors}) holding a glowing amber lantern high in a shadowy canyon at twilight, with deep purple skies overhead, examining glowing footsteps leading toward a distant illuminated mountain tower.`,
     },
     {
       title: 'The Turning Point',
@@ -317,6 +329,8 @@ function generateProceduralChapter(options: {
         `Inside the main chamber, the final puzzle piece presented itself—a towering celestial globe covered in glowing star charts.\n\n` +
         `"It requires a specific harmonic frequency," ${lead.name} realized, adjusting the copper tuning prongs. ${companion ? `${companion.name} hummed the melody they had heard earlier, matching the pitch perfectly.` : 'The globe began to spin, illuminating the room in brilliant blue light.'}\n\n` +
         `The path to the ultimate goal was finally unlocked.`,
+      getScenePrompt: (l: any, c: any, lAnchors: string, cAnchors: string) =>
+        `${l.name} (${lAnchors}) carefully adjusting copper tuning prongs on a gigantic spinning celestial star globe that fills an ancient stone observatory chamber with swirling constellations and brilliant starlight.`,
     },
     {
       title: 'The Decisive Moment',
@@ -324,6 +338,8 @@ function generateProceduralChapter(options: {
         `Wind howled around the summit platform as the pressure valves reached critical levels. With only seconds remaining, ${lead.name} made the final connection.\n\n` +
         `"Now!" shouted ${lead.name}, sliding their ${lead.signatureItem || 'key'} into the central axle while ${companion ? companion.name : 'holding the tension lever firm'}.\n\n` +
         `With a resounding *CLACK*, the heavy locks disengaged, restoring complete harmony to the entire realm in a burst of warm golden light.`,
+      getScenePrompt: (l: any, c: any, lAnchors: string, cAnchors: string) =>
+        `${l.name} (${lAnchors}) turning a golden key inside a monumental clockwork mechanism atop a windy mountain summit as radiant beams of warm golden light illuminate the entire sky.`,
     },
     {
       title: 'Reflections under Starlight',
@@ -331,6 +347,8 @@ function generateProceduralChapter(options: {
         `As evening settled over the peaceful valley, the gentle hum of the restored realm echoed softly. ${lead.name} sat beside the clear stream, reflecting on how far they had come.\n\n` +
         `"${companion ? `${companion.name} shared a warm flask of tea with a tired smile.` : `${lead.name} looked up at the twinkling sky, feeling the deep satisfaction of a solved mystery.`}" We made a real difference today.\n\n` +
         `The stars bloomed across the night sky, marking a triumphant milestone built on friendship, courage, and curiosity.`,
+      getScenePrompt: (l: any, c: any, lAnchors: string, cAnchors: string) =>
+        `${l.name} (${lAnchors}) and ${c ? `${c.name} (${cAnchors})` : 'companions'} sitting contentedly beside a gently bubbling stream under a breathtaking canopy of twinkling stars, holding warm mugs of tea by a cozy lantern.`,
     },
   ];
 
@@ -341,7 +359,14 @@ function generateProceduralChapter(options: {
   const stageTitle = `Page ${chapterNumber}: ${currentBeat.title}`;
   const content = currentBeat.buildContent();
 
-  const illustrationPrompt = `Art Style: ${artStyle}. Scene Details: ${lead.name} active on page ${chapterNumber} of ${bookTitle}, expressive body language, storybook composition. Visual Anchors: ${lead.name} (${leadAnchors})${companion ? `, ${companion.name} (${companionAnchors})` : ''}. Environment & Lighting: ${genre} setting, warm atmospheric lighting, cinematic color harmony. Camera Framing: ${currentFraming}.`;
+  const sceneDetail = currentBeat.getScenePrompt(lead, companion, leadAnchors, companionAnchors);
+  const illustrationPrompt = injectPageContext({
+    pageText: content,
+    artStyle,
+    rawPrompt: sceneDetail,
+    characterAnchors: leadAnchors + (companion ? `; ${companion.name}: ${companionAnchors}` : ''),
+    chapterNumber,
+  });
 
   const choices = isFinal
     ? [
@@ -580,6 +605,10 @@ async function generateHuggingFaceImage(prompt: string, options: { width?: numbe
   return null;
 }
 
+// Unified 3D Pixar Style Modifier for All System Image Generation
+export const UNIFIED_PIXAR_3D_STYLE_PROMPT =
+  'Pixar 3D animated film render, masterpiece 3D animation still, Physically-Based Rendering (PBR), micro-texture detail, subsurface scattering on skin, expressive stylized character design, warm cinematic volumetric studio lighting, rich vibrant color palette, octane render style';
+
 /**
  * Pollinations AI Helper for fast, high-volume Image Generation & Editing fallback
  */
@@ -588,7 +617,11 @@ function buildPollinationsImageUrl(prompt: string, options: { width?: number; he
   const height = options.height || 576;
   const seed = options.seed || Math.floor(Math.random() * 999999);
   const model = options.model || 'flux'; // 'flux', 'flux-realism', 'turbo', 'anime'
-  const encodedPrompt = encodeURIComponent(prompt.trim());
+  let cleanPrompt = prompt.trim();
+  if (!cleanPrompt.toLowerCase().includes('pixar 3d') && !cleanPrompt.toLowerCase().includes('animated film')) {
+    cleanPrompt = `${UNIFIED_PIXAR_3D_STYLE_PROMPT}. Scene: ${cleanPrompt}. Camera & atmosphere: sharp focus, volumetric lighting, rich color palette, octane render style, no text, no watermark.`;
+  }
+  const encodedPrompt = encodeURIComponent(cleanPrompt);
   return `https://image.pollinations.ai/prompt/${encodedPrompt}?width=${width}&height=${height}&seed=${seed}&model=${model}&nologo=true&enhance=true`;
 }
 
@@ -603,15 +636,19 @@ async function generateImageMultiTier(prompt: string, options: {
   artStyle?: string;
   seed?: number;
 }): Promise<{ imageUrl: string; provider: string; note?: string }> {
-  const { width = 1024, height = 576, aspectRatio = '16:9', artStyle = 'hyper_articulated_realism', seed } = options;
+  const { width = 1024, height = 576, aspectRatio = '16:9', seed } = options;
 
-  // Cinematic 3D & Pixar styling enhancer
-  const isPixarOr3D = artStyle.includes('realism') || artStyle.includes('claymation') || artStyle.includes('cartoon') || artStyle.includes('3d') || artStyle.includes('pixar') || artStyle.includes('photorealism');
-  const styleEnhancement = isPixarOr3D
-    ? 'Pixar 3D animated film render, 3D character animation still, subsurface scattering on skin, raytraced studio volumetric lighting, rich color palette, octane render style'
-    : `Art style: ${artStyle}`;
-
-  const fullPrompt = `${prompt}. ${styleEnhancement}. Masterpiece cinematic storybook illustration, breathtaking atmospheric lighting, sharp focus, fine textures, clean rendering, no text, no watermark, no captions.`;
+  // Build clean, non-repetitive prompt strictly enforcing the 3D Pixar style
+  let fullPrompt = prompt.trim();
+  const lowerPrompt = fullPrompt.toLowerCase();
+  
+  if (!lowerPrompt.includes('pixar 3d') && !lowerPrompt.includes('animated film')) {
+    fullPrompt = `${UNIFIED_PIXAR_3D_STYLE_PROMPT}. Scene: ${fullPrompt}.`;
+  }
+  
+  if (!lowerPrompt.includes('no text') && !lowerPrompt.includes('clean rendering')) {
+    fullPrompt = `${fullPrompt} Masterpiece cinematic storybook illustration, sharp focus, clean rendering, no text, no watermark, no captions.`;
+  }
 
   // 1. Cloudflare Workers AI
   try {
@@ -948,9 +985,93 @@ const PIXAR_STYLE_PROMPTS: Record<string, string> = {
 };
 
 /**
+ * Strips away any previous metadata headers or repetitive labels
+ * that might have been prepended by previous pipeline passes.
+ */
+function cleanPromptOfMetaLabels(text: string): string {
+  if (!text) return '';
+  return text
+    .replace(/Page Narrative Intent & Specific Action:\s*"?([^".]*)"?/gi, '$1')
+    .replace(/Art Style:\s*[^.]+\./gi, '')
+    .replace(/Visual Anchors:\s*[^.]+\./gi, '')
+    .replace(/Camera Staging:\s*[^.]+\./gi, '')
+    .replace(/Camera & atmosphere:\s*[^.]+\./gi, '')
+    .replace(/Scene Details:\s*/gi, '')
+    .replace(/Scene:\s*/gi, '')
+    .replace(/Render Specs:\s*[^.]+\./gi, '')
+    .replace(/Featuring characters:\s*[^.]+\./gi, '')
+    .replace(/Pixar 3D animated film render,?\s*/gi, '')
+    .replace(/Masterpiece 3D Pixar animated film still,?\s*/gi, '')
+    .replace(/sharp focus, volumetric raytracing, clean rendering, zero text, zero watermark, zero speech bubbles\.?/gi, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+/**
+ * Smart Narrative Action Extractor:
+ * Analyzes the entire chapter text to identify the most dynamic, character-driven
+ * physical action of the page rather than blindly taking the first introductory sentence.
+ */
+function extractKeyActionFromProse(prose: string, characterNames: string[] = []): string {
+  if (!prose || prose.trim().length === 0) return '';
+  const clean = prose.trim();
+
+  // Split into natural sentences
+  const allSentences = clean.match(/[^.!?]+[.!?]+/g) || [clean];
+  if (allSentences.length <= 1) return allSentences[0].trim();
+
+  // Active verbs that indicate visual scene composition
+  const actionKeywords = [
+    'turned', 'holding', 'climbed', 'looked', 'pointed', 'unlocked', 'pressed',
+    'lifted', 'reached', 'discovered', 'opened', 'stepped', 'grasped', 'examined',
+    'watched', 'ran', 'gazed', 'pulled', 'activated', 'leaped', 'touched', 'whispered',
+    'glowed', 'shimmered', 'sparked', 'spotted', 'found', 'aligned', 'braced', 'sliding'
+  ];
+
+  let bestSentence = '';
+  let highestScore = -999;
+
+  allSentences.forEach((s, idx) => {
+    const trimmed = s.trim();
+    if (trimmed.length < 25 || trimmed.length > 180) return;
+
+    let score = 0;
+    const lower = trimmed.toLowerCase();
+
+    // Prefer middle & climactic sentences over opening exposition
+    if (idx === 0) score -= 4; // Opening lines like "The morning was cold" are passive
+    if (idx >= 1 && idx <= 4) score += 3; // Heart of the action
+
+    // Bonus for characters present in the sentence
+    characterNames.forEach(name => {
+      if (name && lower.includes(name.toLowerCase())) score += 5;
+    });
+
+    // Bonus for active verbs
+    actionKeywords.forEach(kw => {
+      if (lower.includes(kw)) score += 2;
+    });
+
+    // Heavy penalty for dialogue-only or abstract intros
+    if (lower.startsWith('"') || lower.startsWith('“')) score -= 1;
+    if (lower.startsWith('the morning') || lower.startsWith('as the sun') || lower.startsWith('a silence')) {
+      score -= 5;
+    }
+
+    if (score > highestScore) {
+      highestScore = score;
+      bestSentence = trimmed;
+    }
+  });
+
+  return bestSentence || allSentences[Math.min(1, allSentences.length - 1)].trim();
+}
+
+/**
  * Mandatory Page Context Injection Helper:
- * Extracts specific narrative action from the page prose and blends it with the designated
- * Pixar-inspired style prompt, character visual anchors, and dynamic lens camera framing.
+ * Produces a clean, coherent natural language prompt for text-to-image models (FLUX.1, SDXL, Gemini Image),
+ * ensuring the illustration style directly reflects the page's specific narrative action, character anchors,
+ * and chosen Pixar styling without confusing metadata headers.
  */
 function injectPageContext(options: {
   pageText?: string;
@@ -961,32 +1082,40 @@ function injectPageContext(options: {
 }): string {
   const { pageText = '', artStyle = 'hyper_articulated_realism', rawPrompt = '', characterAnchors = '', chapterNumber = 1 } = options;
 
-  // Match designated Pixar style modifier from the 6 specific prompts
-  const styleKey = Object.keys(PIXAR_STYLE_PROMPTS).find(k => (artStyle || '').toLowerCase().includes(k) || k.includes((artStyle || '').toLowerCase())) || 'hyper_articulated_realism';
-  const pixarStyleModifier = PIXAR_STYLE_PROMPTS[styleKey] || PIXAR_STYLE_PROMPTS['hyper_articulated_realism'];
+  // Extract clean character names for heuristic matching
+  const charNames = characterAnchors
+    ? characterAnchors.split(';').map(s => s.split(':')[0].trim()).filter(Boolean)
+    : [];
 
-  // Summarize specific action of the generated story text
-  let actionSummary = 'An active storybook scene';
-  if (pageText && pageText.trim().length > 10) {
-    const cleanProse = pageText.trim();
-    const sentences = cleanProse.match(/[^.!?]+[.!?]+/g) || [cleanProse];
-    const keyActionSentence = sentences.find(s => s.length > 20 && s.length < 150) || sentences[0] || cleanProse.slice(0, 120);
-    actionSummary = keyActionSentence.trim().replace(/\s+/g, ' ');
-  } else if (rawPrompt) {
-    actionSummary = rawPrompt;
+  const cleanedRaw = cleanPromptOfMetaLabels(rawPrompt);
+
+  // Determine the core narrative action of this specific page
+  let sceneAction = '';
+  const isGeneric = !cleanedRaw || cleanedRaw.length < 20 || cleanedRaw.toLowerCase().includes('active on page') || cleanedRaw.toLowerCase().includes('a milestone in the journey');
+  if (!isGeneric) {
+    sceneAction = cleanedRaw;
+  } else if (pageText && pageText.trim().length > 20) {
+    sceneAction = extractKeyActionFromProse(pageText, charNames);
+  } else {
+    sceneAction = cleanedRaw || 'Storybook character embarking on an imaginative adventure';
   }
 
   // Rotational Lens & Framing Protocol
   const lenses = [
-    '24mm wide-angle establishing shot with cinematic environmental depth and volumetric light rays',
+    '24mm cinematic wide-angle establishing shot, environmental depth, volumetric light rays',
     '35mm dynamic low-angle perspective emphasizing character action and physical interaction',
     '50mm intimate medium close-up highlighting expressive facial micro-expressions and warm rim lighting',
-    '85mm hero portrait shot with shallow depth of field f/1.8 bokeh',
-    'Macro focal shot highlighting tactile tools and atmospheric particles',
+    '85mm hero portrait shot, shallow depth of field f/1.8 soft bokeh',
+    'tactile atmospheric shot highlighting physical interaction and luminous particles',
   ];
   const lensStaging = lenses[(chapterNumber - 1) % lenses.length];
 
-  return `Page Narrative Intent & Specific Action: "${actionSummary}". Art Style: ${pixarStyleModifier}. Visual Anchors: ${characterAnchors || 'Pixar 3D storybook character'}. Camera Staging: ${lensStaging}. ${rawPrompt ? `Scene Details: ${rawPrompt}.` : ''} Render Specs: Masterpiece 3D Pixar animated film still, sharp focus, volumetric raytracing, clean rendering, zero text, zero watermark, zero speech bubbles.`;
+  // Character visual anchor clause
+  const cleanAnchors = characterAnchors ? characterAnchors.replace(/;/g, ',') : '';
+  const charClause = cleanAnchors.trim() ? `Featuring ${cleanAnchors}.` : '';
+
+  // Return a cohesive natural language prompt that diffusion models can directly interpret
+  return `${UNIFIED_PIXAR_3D_STYLE_PROMPT}. Scene: ${sceneAction}. ${charClause} Camera & atmosphere: ${lensStaging}, sharp focus, rich colors, octane render style, no text, no watermark, no captions.`;
 }
 
 interface StoryHistoryBufferData {
@@ -1148,7 +1277,7 @@ Provide:
 1. Chapter title (evocative and unique)
 2. Chapter summary (1-2 sentences)
 3. Chapter prose content (complete unique narrative prose for this page)
-4. illustrationPrompt (MUST adhere to Page Context Injection protocol with specific page action and Pixar 3D styling)
+4. illustrationPrompt: A vivid visual description (40-60 words) capturing the SINGLE MOST DRAMATIC ACTION of THIS specific chapter's prose. Explicitly describe: which characters are present, their clothing/appearance, their physical pose and specific interaction with items or environment (e.g., 'Milo leans over a mossy stone pedestal to turn a glowing copper dial while Oliver the owl hovers overhead clutching a brass lantern'), the immediate setting, and lighting. Do NOT use meta-tags or prefixes like 'Scene:' or 'Style:'.
 5. ${isFinalChapter ? '1-2 concluding reflections' : '2-3 diverse, branching choices for the reader'}
 6. Memory updates to ensure non-repetition in future chapters.`;
 
@@ -1167,7 +1296,7 @@ Provide:
               content: { type: Type.STRING, description: 'The complete chapter prose (350-550 words)' },
               illustrationPrompt: {
                 type: Type.STRING,
-                description: 'Detailed prompt for context-aware image generation for this scene',
+                description: 'Vivid, direct visual description of the single most dramatic action of this page, naming characters, physical action, and setting',
               },
               choices: {
                 type: Type.ARRAY,
@@ -1340,7 +1469,7 @@ CRITICAL DIRECTIVES FOR COMPLETE BOOK GENERATION:
   Stage 4 (Page ${Math.ceil(3*pageCount/4)+1}..${pageCount-1}): Climax requiring character growth or clever resourcefulness.
   Stage 5 (Page ${pageCount}): Satisfying resolution (NO moralizing summary sentences at the end).
 - ABSOLUTE NON-REPETITION: Every page MUST have distinct, unique narrative text advancing the plot. NEVER repeat identical sentence templates or filler paragraphs.
-- ILLUSTRATION PROMPT PROTOCOL: Each page illustrationPrompt must include Art Style, Scene Details, Visual Anchors (exact visual specs of custom characters), Environment & Lighting, and Camera Framing (shifting perspective across pages).
+- ILLUSTRATION PROMPT PROTOCOL: For each chapter, illustrationPrompt MUST be a direct, vivid 40-60 word scene description of the SINGLE KEY DRAMATIC EVENT taking place on THAT page. Explicitly describe which characters are doing what physical action, what objects they are interacting with, the immediate environment, and the lighting. Never write generic labels, meta tags, or repeated phrases.
 `;
 
     try {
@@ -1377,7 +1506,10 @@ Generate an array of ${pageCount} chapters representing the complete 5-stage sto
                     title: { type: Type.STRING },
                     summary: { type: Type.STRING },
                     content: { type: Type.STRING },
-                    illustrationPrompt: { type: Type.STRING },
+                    illustrationPrompt: {
+                      type: Type.STRING,
+                      description: 'Direct, vivid 40-60 word scene description of the single key dramatic action on this page',
+                    },
                   },
                   required: ['chapterNumber', 'title', 'summary', 'content', 'illustrationPrompt'],
                 },
@@ -1749,14 +1881,14 @@ app.post('/api/images/generate', async (req, res) => {
     const width = aspectRatio === '16:9' ? 1024 : aspectRatio === '9:16' ? 576 : 800;
     const height = aspectRatio === '16:9' ? 576 : aspectRatio === '9:16' ? 1024 : 800;
 
-    const fullPrompt = `${prompt}, ${style} style, ultra high quality, intricate details, artistic lighting`;
+    const fullPrompt = `${UNIFIED_PIXAR_3D_STYLE_PROMPT}. Scene: ${prompt}. Camera & atmosphere: cinematic studio lighting, sharp focus, clean rendering, no text, no watermark, no captions.`;
 
     // Try primary high-tier generation for the first image
     const primaryResult = await generateImageMultiTier(fullPrompt, {
       width,
       height,
       aspectRatio,
-      artStyle: style,
+      artStyle: 'hyper_articulated_realism',
       seed: Math.floor(Math.random() * 999999),
     });
 
@@ -1801,11 +1933,15 @@ app.post('/api/images/edit', async (req, res) => {
       const ai = getGeminiClient();
       const response = await ai.models.generateContent({
         model: 'gemini-3.7-flash',
-        contents: `You are an expert image synthesis director. Given this edit instruction: "${editInstruction}" and target style "${targetStyle}", formulate a single, cohesive, vivid image generation prompt that renders the transformed scene or character with photorealistic or stylized precision. Output only the prompt string.`,
+        contents: `You are an expert image synthesis director specializing in 3D Pixar animated film renders. Given this edit instruction: "${editInstruction}", formulate a single, cohesive, vivid image generation prompt that renders the transformed scene or character strictly in 3D Pixar animated film style with Physically-Based Rendering (PBR), subsurface scattering on skin, expressive stylized character design, warm cinematic volumetric studio lighting, rich vibrant color palette, and octane render style. Output only the prompt string.`,
       });
       if (response.text) refinedPrompt = response.text.trim();
     } catch (e) {
       console.warn('Prompt refinement note:', e);
+    }
+
+    if (!refinedPrompt.toLowerCase().includes('pixar 3d')) {
+      refinedPrompt = `${UNIFIED_PIXAR_3D_STYLE_PROMPT}. Scene: ${refinedPrompt}. Camera & atmosphere: cinematic lighting, sharp focus, clean rendering, no text, no watermark.`;
     }
 
     const modifiedImageUrl = buildPollinationsImageUrl(refinedPrompt, {

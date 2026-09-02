@@ -304,27 +304,41 @@ export const StoryCreator: React.FC<StoryCreatorProps> = ({
         }
 
         const rawChapters = fullBookData.chapters || [];
-        setGenerationStepStatus('Illustrating storybook pages...');
+        const characterAnchorsString = effectiveCast
+          .map((c) => `${c.name}: ${c.appearanceTags?.join(', ') || c.visualProfile?.artisticStylePrompt || ''}`)
+          .join('; ');
 
-        // Generate scene illustration for cover and chapter 1
-        let coverImageUrl = effectiveCast[0]?.visualProfile.photoUrl || '';
-        try {
-          const illuRes = await fetch('/api/story/generate-illustration', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              prompt: rawChapters[0]?.illustrationPrompt || `${finalTitle}, ${selectedGenre} scene, soft magical lighting`,
-              artStyle: selectedArtStyle,
-              aspectRatio: '16:9',
-            }),
-          });
-          const illuData = await illuRes.json();
-          if (illuData.success && illuData.imageUrl) {
-            coverImageUrl = illuData.imageUrl;
+        // Generate context-aware scene illustrations for all chapters in the book
+        const chapterImageUrls: string[] = [];
+        for (let i = 0; i < rawChapters.length; i++) {
+          const ch = rawChapters[i];
+          setGenerationStepStatus(`Painting page illustration ${i + 1} of ${rawChapters.length}...`);
+          try {
+            const illuRes = await fetch('/api/story/generate-illustration', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                prompt: ch.illustrationPrompt || `${finalTitle}, Chapter ${i + 1} scene, soft magical lighting`,
+                storyText: ch.content || '',
+                artStyle: selectedArtStyle,
+                aspectRatio: '16:9',
+                characterAnchors: characterAnchorsString,
+                chapterNumber: ch.chapterNumber || i + 1,
+              }),
+            });
+            const illuData = await illuRes.json();
+            if (illuData.success && illuData.imageUrl) {
+              chapterImageUrls.push(illuData.imageUrl);
+            } else {
+              chapterImageUrls.push(chapterImageUrls[0] || effectiveCast[0]?.visualProfile.photoUrl || '');
+            }
+          } catch (e) {
+            console.warn(`Chapter ${i + 1} illustration error:`, e);
+            chapterImageUrls.push(chapterImageUrls[0] || effectiveCast[0]?.visualProfile.photoUrl || '');
           }
-        } catch (e) {
-          console.warn('Cover illustration note:', e);
         }
+
+        const coverImageUrl = chapterImageUrls[0] || effectiveCast[0]?.visualProfile.photoUrl || '';
 
         const allChapters: StoryChapter[] = rawChapters.map((ch: any, idx: number) => ({
           id: `chap_${idx + 1}_${Date.now()}`,
@@ -333,7 +347,7 @@ export const StoryCreator: React.FC<StoryCreatorProps> = ({
           summary: ch.summary || 'A milestone in the journey.',
           content: ch.content || 'The story unfolds with warmth and wonder.',
           illustrationPrompt: ch.illustrationPrompt,
-          imageUrl: idx === 0 ? coverImageUrl : effectiveCast[idx % effectiveCast.length]?.visualProfile?.photoUrl || coverImageUrl,
+          imageUrl: chapterImageUrls[idx] || coverImageUrl,
           choices: [
             {
               id: `c_${idx}_1`,
@@ -428,13 +442,20 @@ export const StoryCreator: React.FC<StoryCreatorProps> = ({
       // 2. Generate initial scene illustration
       let chapterImageUrl = '';
       try {
+        const characterAnchorsString = effectiveCast
+          .map((c) => `${c.name}: ${c.appearanceTags?.join(', ') || c.visualProfile?.artisticStylePrompt || ''}`)
+          .join('; ');
+
         const illuRes = await fetch('/api/story/generate-illustration', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             prompt: generatedChapter.illustrationPrompt,
+            storyText: generatedChapter.content,
             artStyle: selectedArtStyle,
             aspectRatio: '16:9',
+            characterAnchors: characterAnchorsString,
+            chapterNumber: 1,
           }),
         });
         const illuData = await illuRes.json();
@@ -961,16 +982,22 @@ export const StoryCreator: React.FC<StoryCreatorProps> = ({
           {/* Art style selection */}
           <div className="space-y-4 pt-4 border-t border-[#E8E2D6]">
             <div>
-              <h3 className="font-serif text-base sm:text-lg font-bold text-[#3A342F] flex items-center gap-2">
-                <Palette className="w-5 h-5 text-[#B45F3C]" />
-                Select Illustration Art Style
-              </h3>
-              <p className="text-xs text-[#78716A]">
-                Context-aware images will be visually generated in this artistic medium.
+              <div className="flex items-center justify-between">
+                <h3 className="font-serif text-base sm:text-lg font-bold text-[#3A342F] flex items-center gap-2">
+                  <Palette className="w-5 h-5 text-[#B45F3C]" />
+                  Illustration Art Style
+                </h3>
+                <span className="px-2.5 py-1 rounded-full bg-[#EAF0E8] border border-[#D0E0CC] text-[#3B5436] font-semibold text-[11px] flex items-center gap-1">
+                  <Sparkles className="w-3 h-3 text-[#5B6B56]" />
+                  Unified Visual Standard
+                </span>
+              </div>
+              <p className="text-xs text-[#78716A] pt-1">
+                All pages, covers, and character scenes are rendered in the unified 3D Pixar animation style for cinematic visual harmony.
               </p>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 gap-4">
               {ART_STYLES.map((art) => {
                 const isSelected = selectedArtStyle === art.id;
                 return (
@@ -978,27 +1005,31 @@ export const StoryCreator: React.FC<StoryCreatorProps> = ({
                     key={art.id}
                     id={`art-style-${art.id}`}
                     onClick={() => setSelectedArtStyle(art.id)}
-                    className={`p-3.5 rounded-2xl cursor-pointer border transition-all flex items-center gap-3.5 ${
-                      isSelected
-                        ? 'bg-white border-[#B45F3C] ring-2 ring-[#B45F3C]/20 shadow-md'
-                        : 'bg-white border-[#DFD8CA] hover:border-[#B45F3C]/50 shadow-xs'
-                    }`}
+                    className="p-4 rounded-2xl cursor-pointer border transition-all flex flex-col sm:flex-row items-start sm:items-center gap-4 bg-white border-[#B45F3C] ring-2 ring-[#B45F3C]/20 shadow-sm"
                   >
                     <img
                       src={art.sampleThumbnail}
                       alt={art.name}
                       referrerPolicy="no-referrer"
-                      className="w-14 h-14 rounded-xl object-cover border border-[#DFD8CA] shrink-0"
+                      className="w-16 h-16 sm:w-20 sm:h-20 rounded-xl object-cover border border-[#DFD8CA] shrink-0"
                     />
-                    <div className="space-y-1 flex-1 min-w-0">
+                    <div className="space-y-1.5 flex-1 min-w-0">
                       <div className="flex items-center justify-between">
-                        <span className="font-serif font-bold text-[#3A342F] text-xs sm:text-sm truncate">
-                          {art.name}
-                        </span>
-                        {isSelected && <CheckCircle2 className="w-3.5 h-3.5 text-[#B45F3C] shrink-0" />}
+                        <div className="flex items-center gap-2">
+                          <span className="font-serif font-bold text-[#3A342F] text-sm sm:text-base">
+                            {art.name}
+                          </span>
+                          <span className="px-2 py-0.5 rounded-md bg-[#FBF7F2] border border-[#DFD8CA] text-[10px] font-bold text-[#B45F3C]">
+                            Active Standard
+                          </span>
+                        </div>
+                        <CheckCircle2 className="w-4 h-4 text-[#B45F3C] shrink-0" />
                       </div>
-                      <p className="text-[11px] text-[#6E665E] leading-tight line-clamp-2">
+                      <p className="text-xs text-[#6E665E] leading-relaxed">
                         {art.description}
+                      </p>
+                      <p className="text-[11px] font-mono text-[#5B6B56]">
+                        PBR shaders • Subsurface scattering • Cinematic volumetric lighting • Octane render
                       </p>
                     </div>
                   </div>

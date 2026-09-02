@@ -187,48 +187,16 @@ export const KIDS_MORAL_THEMES = [
   { id: 'bedtime_peace', label: 'Peaceful Bedtime & Gratitude', description: 'Celebrating the day’s blessings and resting peacefully' },
 ];
 
+export const UNIFIED_PIXAR_3D_STYLE_PROMPT =
+  'Pixar 3D animated film render, masterpiece 3D animation still, Physically-Based Rendering (PBR), micro-texture detail, subsurface scattering on skin, expressive stylized character design, warm cinematic volumetric studio lighting, rich vibrant color palette, octane render style';
+
 export const ART_STYLES: ArtStyleDefinition[] = [
   {
     id: 'hyper_articulated_realism',
-    name: 'Classic Hyper-Articulated Realism',
-    description: 'Physically-Based Rendering (PBR), micro-texture detail, subsurface scattering, cinematic volumetric lighting, hyper-detailed Pixar 3D.',
+    name: '3D Pixar Animated Film',
+    description: 'Masterpiece 3D Pixar animation still with Physically-Based Rendering (PBR), subsurface scattering on skin, expressive character design, and warm cinematic studio lighting.',
     sampleThumbnail: 'https://images.unsplash.com/photo-1534447677768-be436bb09401?w=300&q=80',
-    promptModifier: 'Physically-Based Rendering (PBR), micro-texture detail, subsurface scattering, cinematic volumetric lighting, hyper-detailed Pixar 3D',
-  },
-  {
-    id: 'chunky_claymation',
-    name: 'Chunky Claymation / Handcrafted',
-    description: 'Tactile claymation aesthetic, soft clay surfaces, rounded geometric shapes, stop-motion feel, handcrafted 3D render.',
-    sampleThumbnail: 'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?w=300&q=80',
-    promptModifier: 'Tactile claymation aesthetic, soft clay surfaces, rounded geometric shapes, stop-motion feel, handcrafted 3D render',
-  },
-  {
-    id: 'bean_mouth_cartoon',
-    name: '"Bean Mouth" / Modern Stylized Cartoon',
-    description: 'Bean-mouth character design, expressive exaggerated eyes, flushed cheeks, soft pastel color palette, modern Pixar stylized animation.',
-    sampleThumbnail: 'https://images.unsplash.com/photo-1579783900882-c0d3dad7b119?w=300&q=80',
-    promptModifier: 'Bean-mouth character design, expressive exaggerated eyes, flushed cheeks, soft pastel color palette, modern Pixar stylized animation',
-  },
-  {
-    id: 'abstract_surrealism',
-    name: 'Abstract / Painterly Surrealism',
-    description: 'Ethereal translucent shaders, glowing particle volumetric light, abstract 3D shapes, painterly gradient background, surreal Pixar concept art style.',
-    sampleThumbnail: 'https://images.unsplash.com/photo-1579783902614-a3fb3927b675?w=300&q=80',
-    promptModifier: 'Ethereal translucent shaders, glowing particle volumetric light, abstract 3D shapes, painterly gradient background, surreal Pixar concept art style',
-  },
-  {
-    id: 'stylized_photorealism',
-    name: 'Stylized Photorealism (Environment Focus)',
-    description: 'Photorealistic 3D environment, shallow depth of field, cinematic camera lens blur, PBR lighting, stylized character in realistic setting.',
-    sampleThumbnail: 'https://images.unsplash.com/photo-1509198397868-475647b2a1e5?w=300&q=80',
-    promptModifier: 'Photorealistic 3D environment, shallow depth of field, cinematic camera lens blur, PBR lighting, stylized character in realistic setting',
-  },
-  {
-    id: 'anime_2d_3d_hybrid',
-    name: 'Anime-Inspired 2D/3D Hybrid',
-    description: '3D anime hybrid style, exaggerated expressive poses, 2D impact lines in 3D, vivid neon lighting, snappy stylized 3D animation.',
-    sampleThumbnail: 'https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?w=300&q=80',
-    promptModifier: '3D anime hybrid style, exaggerated expressive poses, 2D impact lines in 3D, vivid neon lighting, snappy stylized 3D animation',
+    promptModifier: UNIFIED_PIXAR_3D_STYLE_PROMPT,
   },
 ];
 
