@@ -190,6 +190,13 @@ export const StoryReader: React.FC<StoryReaderProps> = ({
     0
   );
 
+  // Mobile Navigation & One-Handed Reading State
+  const [isMobileToolsDrawerOpen, setIsMobileToolsDrawerOpen] = useState(false);
+  const [oneHandTapEnabled, setOneHandTapEnabled] = useState(true);
+  const [tapFeedbackSide, setTapFeedbackSide] = useState<'left' | 'right' | null>(null);
+  const [touchStartX, setTouchStartX] = useState<number | null>(null);
+  const [touchStartY, setTouchStartY] = useState<number | null>(null);
+
   // Multi-Language & Dutch Translation State
   const [selectedLanguage, setSelectedLanguage] = useState<string>('en');
   const [translationsCache, setTranslationsCache] = useState<
@@ -416,6 +423,69 @@ export const StoryReader: React.FC<StoryReaderProps> = ({
     setCustomAction('');
   }, [currentChapterIndex]);
 
+  // Chapter Navigation with Voice Cleanup & Visual Feedback
+  const handlePreviousPage = () => {
+    if (currentChapterIndex > 0) {
+      narrator.stop();
+      setIsSpeaking(false);
+      setTapFeedbackSide('left');
+      setTimeout(() => setTapFeedbackSide(null), 400);
+      onUpdateBook({ ...book, currentChapterIndex: currentChapterIndex - 1 });
+    }
+  };
+
+  const handleNextPage = () => {
+    if (currentChapterIndex < book.chapters.length - 1) {
+      narrator.stop();
+      setIsSpeaking(false);
+      setTapFeedbackSide('right');
+      setTimeout(() => setTapFeedbackSide(null), 400);
+      onUpdateBook({ ...book, currentChapterIndex: currentChapterIndex + 1 });
+    }
+  };
+
+  // Keyboard Navigation: Left / Right Arrow keys
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const activeTag = (document.activeElement as HTMLElement)?.tagName;
+      if (['INPUT', 'TEXTAREA', 'SELECT'].includes(activeTag)) return;
+      if (e.key === 'ArrowLeft') {
+        handlePreviousPage();
+      } else if (e.key === 'ArrowRight') {
+        handleNextPage();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [currentChapterIndex, book.chapters.length]);
+
+  // Touch Swipe Gesture Handling (Swipe Left -> Next Page, Swipe Right -> Prev Page)
+  const handleReaderTouchStart = (e: React.TouchEvent) => {
+    setTouchStartX(e.touches[0].clientX);
+    setTouchStartY(e.touches[0].clientY);
+  };
+
+  const handleReaderTouchEnd = (e: React.TouchEvent) => {
+    if (touchStartX === null || touchStartY === null) return;
+    const touchEndX = e.changedTouches[0].clientX;
+    const touchEndY = e.changedTouches[0].clientY;
+    const deltaX = touchStartX - touchEndX;
+    const deltaY = touchStartY - touchEndY;
+
+    // Trigger only if horizontal swipe dominates and exceeds threshold
+    if (Math.abs(deltaX) > 50 && Math.abs(deltaX) > Math.abs(deltaY) * 1.4) {
+      if (deltaX > 0) {
+        // Swiped Left -> Advance to Next Page
+        handleNextPage();
+      } else {
+        // Swiped Right -> Return to Previous Page
+        handlePreviousPage();
+      }
+    }
+    setTouchStartX(null);
+    setTouchStartY(null);
+  };
+
   const handleToggleNarration = () => {
     if (isSpeaking) {
       narrator.stop();
@@ -439,8 +509,11 @@ export const StoryReader: React.FC<StoryReaderProps> = ({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           prompt: currentChapter.illustrationPrompt,
+          storyText: currentChapter.content,
           artStyle: book.artStyle,
           aspectRatio: '16:9',
+          characterAnchors: book.cast.map((c) => `${c.name}: ${c.appearanceTags?.join(', ')}`).join('; '),
+          chapterNumber: currentChapter.chapterNumber,
         }),
       });
       const data = await res.json();
@@ -449,6 +522,7 @@ export const StoryReader: React.FC<StoryReaderProps> = ({
         updatedChapters[currentChapterIndex] = {
           ...currentChapter,
           imageUrl: data.imageUrl,
+          illustrationPrompt: data.injectedPrompt || currentChapter.illustrationPrompt,
         };
         onUpdateBook({
           ...book,
@@ -495,6 +569,7 @@ export const StoryReader: React.FC<StoryReaderProps> = ({
           moralLesson: book.moralLesson || '',
           isKidsMode: book.isKidsMode || false,
           plotMemory: book.plotMemory,
+          historyBuffer: book.plotMemory?.historyBuffer,
           previousChaptersSummary: prevSummary,
           chosenChoiceAction: chosenActionText,
           entropyLevel: book.entropyLevel,
@@ -510,7 +585,7 @@ export const StoryReader: React.FC<StoryReaderProps> = ({
 
       setAdvancingStatus(`Painting scene illustration for Chapter ${nextChapterNumber}...`);
 
-      // Generate scene illustration
+      // Generate scene illustration with Page Context Injection
       let nextImageUrl = '';
       try {
         const illuRes = await fetch('/api/story/generate-illustration', {
@@ -518,8 +593,11 @@ export const StoryReader: React.FC<StoryReaderProps> = ({
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             prompt: nextChapData.illustrationPrompt,
+            storyText: nextChapData.content,
             artStyle: book.artStyle,
             aspectRatio: '16:9',
+            characterAnchors: book.cast.map((c) => `${c.name}: ${c.appearanceTags?.join(', ')}`).join('; '),
+            chapterNumber: nextChapterNumber,
           }),
         });
         const illuData = await illuRes.json();
@@ -568,6 +646,7 @@ export const StoryReader: React.FC<StoryReaderProps> = ({
           ...book.plotMemory.worldStateChanges,
           ...(nextChapData.memoryUpdate?.worldStateChanges || []),
         ],
+        historyBuffer: data.historyBuffer || book.plotMemory?.historyBuffer,
       };
 
       const updatedBook: StoryBook = {
@@ -685,10 +764,12 @@ export const StoryReader: React.FC<StoryReaderProps> = ({
     <div className={`min-h-screen ${themeStyle.bg} ${themeStyle.text} transition-colors duration-300 pb-20 animate-fade-in`}>
       {/* Top Reading Navigation Bar */}
       <div className={`sticky top-16 z-30 w-full border-b ${themeStyle.border} ${themeStyle.bg}/95 backdrop-blur-md px-3 sm:px-8 py-2.5 sm:py-3 flex items-center justify-between gap-2 sm:gap-4`}>
+        {/* Left: Library Back & Book Title */}
         <div className="flex items-center gap-2 sm:gap-3 min-w-0">
           <button
             onClick={onBackToLibrary}
-            className="flex items-center gap-1 text-xs font-semibold text-[#5B6B56] hover:text-[#3A342F] transition-colors shrink-0"
+            className="flex items-center gap-1 p-2 sm:p-0 rounded-xl sm:rounded-none bg-white sm:bg-transparent border sm:border-0 border-[#DFD8CA] text-xs font-semibold text-[#5B6B56] hover:text-[#3A342F] transition-colors shrink-0 shadow-xs sm:shadow-none"
+            title="Return to Storybook Library"
           >
             <ChevronLeft className="w-4 h-4" />
             <span className="hidden sm:inline">Library</span>
@@ -696,12 +777,19 @@ export const StoryReader: React.FC<StoryReaderProps> = ({
 
           <span className="text-[#C5BCB0] hidden sm:inline">/</span>
 
-          <h2 className="font-serif text-xs sm:text-base font-bold truncate max-w-[150px] sm:max-w-md text-[#3A342F]">
-            {book.title}
-          </h2>
+          <div className="min-w-0">
+            <div className="flex items-center gap-1.5">
+              <h2 className="font-serif text-xs sm:text-base font-bold truncate max-w-[130px] sm:max-w-md text-[#3A342F]">
+                {book.title}
+              </h2>
+              <span className="sm:hidden text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-[#EAF0E8] text-[#3B5436] shrink-0">
+                {currentChapter.chapterNumber}/{book.targetChapters}
+              </span>
+            </div>
+          </div>
 
           {book.isKidsMode ? (
-            <span className="text-[10px] px-2 py-0.5 rounded-full bg-[#EAF0E8] text-[#3B5436] border border-[#D0E0CC] font-bold shrink-0 flex items-center gap-1">
+            <span className="text-[10px] px-2 py-0.5 rounded-full bg-[#EAF0E8] text-[#3B5436] border border-[#D0E0CC] font-bold shrink-0 hidden md:flex items-center gap-1">
               <Baby className="w-3 h-3" /> Kids
             </span>
           ) : (
@@ -711,8 +799,66 @@ export const StoryReader: React.FC<StoryReaderProps> = ({
           )}
         </div>
 
-        {/* Reader Controls */}
-        <div className="flex items-center gap-1 sm:gap-2 shrink-0 relative">
+        {/* Mobile Header Quick Actions (Clean, Perfectly Proportioned, No Squished Buttons) */}
+        <div className="flex sm:hidden items-center gap-1.5 shrink-0">
+          {/* Mobile Narration Play/Pause */}
+          <button
+            id="mobile-reader-narration-btn"
+            onClick={handleToggleNarration}
+            className={`w-9 h-9 rounded-xl flex items-center justify-center transition-all border shadow-xs ${
+              isSpeaking
+                ? 'bg-[#5B6B56] text-white border-[#5B6B56] shadow-md animate-pulse'
+                : 'bg-white text-[#4A443F] hover:bg-[#EAE5DC] border-[#DFD8CA]'
+            }`}
+            title={`Read Aloud (${currentLangOption.name})`}
+          >
+            {isSpeaking ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
+          </button>
+
+          {/* Mobile Bookmark */}
+          <button
+            id="mobile-reader-bookmark-btn"
+            onClick={() => {
+              const currentSaved = readingSettings.bookmarks[book.id];
+              const isCurrentlySaved = currentSaved === currentChapterIndex;
+              const nextBookmarks = { ...readingSettings.bookmarks };
+              if (isCurrentlySaved) {
+                delete nextBookmarks[book.id];
+                setShareFeedback(`Bookmark removed from Chapter ${currentChapterIndex + 1}`);
+              } else {
+                nextBookmarks[book.id] = currentChapterIndex;
+                setShareFeedback(`Bookmark saved at Chapter ${currentChapterIndex + 1}!`);
+              }
+              onUpdateSettings({ ...readingSettings, bookmarks: nextBookmarks });
+              setTimeout(() => setShareFeedback(null), 3000);
+            }}
+            className={`w-9 h-9 rounded-xl flex items-center justify-center transition-all border shadow-xs ${
+              readingSettings.bookmarks[book.id] === currentChapterIndex
+                ? 'bg-[#B45F3C] text-white border-[#B45F3C] shadow-md'
+                : 'bg-white text-[#4A443F] hover:bg-[#EAE5DC] border-[#DFD8CA]'
+            }`}
+            title="Bookmark Current Page"
+          >
+            <Bookmark className="w-4 h-4" />
+          </button>
+
+          {/* Mobile Reading Tools Drawer Opener */}
+          <button
+            id="mobile-reader-tools-drawer-btn"
+            onClick={() => setIsMobileToolsDrawerOpen(true)}
+            className="flex items-center gap-1 px-2.5 h-9 rounded-xl bg-white hover:bg-[#EAE5DC] text-[#3A342F] border border-[#DFD8CA] shadow-xs font-semibold text-xs transition-colors"
+            title="Open Story Reading Tools"
+          >
+            <Sliders className="w-4 h-4 text-[#5B6B56]" />
+            <span className="text-[11px] font-bold">Tools</span>
+            {(readingSettings.bedtimeMode || (readingSettings.ambientSound && readingSettings.soundscapeType !== 'none') || currentChapterNotesCount > 0) && (
+              <span className="w-2 h-2 rounded-full bg-[#B45F3C]" />
+            )}
+          </button>
+        </div>
+
+        {/* Desktop Reader Controls (Spacious, Fully Featured) */}
+        <div className="hidden sm:flex items-center gap-1.5 sm:gap-2 shrink-0 relative">
           {/* Illustrated Journey Map Button */}
           <button
             id="reader-journey-map-btn"
@@ -742,7 +888,7 @@ export const StoryReader: React.FC<StoryReaderProps> = ({
               title="Ambient Story Mood Soundscapes"
             >
               <Music className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">
+              <span className="hidden lg:inline">
                 {readingSettings.ambientSound && readingSettings.soundscapeType !== 'none'
                   ? SOUNDSCAPE_OPTIONS.find((s) => s.id === readingSettings.soundscapeType)?.label
                   : 'Audio Mood'}
@@ -859,7 +1005,7 @@ export const StoryReader: React.FC<StoryReaderProps> = ({
             title="Bookmark Current Page"
           >
             <Bookmark className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">
+            <span className="hidden lg:inline">
               {readingSettings.bookmarks[book.id] === currentChapterIndex ? 'Bookmarked' : 'Bookmark'}
             </span>
           </button>
@@ -876,7 +1022,7 @@ export const StoryReader: React.FC<StoryReaderProps> = ({
             title={`Read Aloud Narration (${currentLangOption.nativeName})`}
           >
             {isSpeaking ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />}
-            <span className="hidden sm:inline">{isSpeaking ? 'Pause' : 'Read Aloud'}</span>
+            <span className="hidden lg:inline">{isSpeaking ? 'Pause' : 'Read Aloud'}</span>
           </button>
 
           {/* Language Selector Dropdown Toggle */}
@@ -897,8 +1043,8 @@ export const StoryReader: React.FC<StoryReaderProps> = ({
               title="Story Translation & Languages"
             >
               <Languages className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">{currentLangOption.flag} {currentLangOption.name}</span>
-              <span className="sm:hidden">{currentLangOption.flag}</span>
+              <span className="hidden lg:inline">{currentLangOption.flag} {currentLangOption.name}</span>
+              <span className="lg:hidden">{currentLangOption.flag}</span>
             </button>
 
             {showLanguageMenu && (
@@ -972,7 +1118,7 @@ export const StoryReader: React.FC<StoryReaderProps> = ({
             title="Margin Notes & Private Chapter Annotations"
           >
             <StickyNote className="w-3.5 h-3.5" />
-            <span className="hidden md:inline">Margin Notes</span>
+            <span className="hidden lg:inline">Margin Notes</span>
             {currentChapterNotesCount > 0 && (
               <span
                 className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
@@ -1027,7 +1173,7 @@ export const StoryReader: React.FC<StoryReaderProps> = ({
               title="Export & Share Options"
             >
               <Download className="w-3.5 h-3.5 text-[#5B6B56]" />
-              <span className="hidden sm:inline">Export</span>
+              <span className="hidden lg:inline">Export</span>
             </button>
 
             {/* Export & Share Menu Popup */}
@@ -1362,8 +1508,79 @@ export const StoryReader: React.FC<StoryReaderProps> = ({
         </div>
       )}
 
-      {/* Main Storybook Container */}
-      <main className="max-w-4xl mx-auto px-4 sm:px-6 pt-6 space-y-8">
+      {/* Main Storybook Container with Touch Gestures & One-Handed Tap Navigation */}
+      <main
+        onTouchStart={handleReaderTouchStart}
+        onTouchEnd={handleReaderTouchEnd}
+        className="relative max-w-4xl mx-auto px-4 sm:px-6 pt-6 space-y-8 select-text"
+      >
+        {/* One-Handed Tap Navigation Zones (Left for Previous, Right for Next) */}
+        {oneHandTapEnabled && (
+          <>
+            {/* Left Page Turn Tap Zone */}
+            <div
+              id="tap-zone-prev"
+              onClick={(e) => {
+                // Don't intercept clicks if user clicked an interactive inner element
+                const target = e.target as HTMLElement;
+                if (target.closest('button, input, textarea, a, [data-interactive="true"]')) return;
+                if (currentChapterIndex > 0) {
+                  handlePreviousPage();
+                }
+              }}
+              className={`fixed left-0 top-24 bottom-20 w-8 sm:w-16 z-20 flex items-center justify-start pl-1 sm:pl-2 pointer-events-auto cursor-pointer group transition-opacity ${
+                currentChapterIndex === 0 ? 'opacity-0 pointer-events-none' : 'opacity-20 hover:opacity-100'
+              }`}
+              title="Tap left side to return to Previous Chapter"
+            >
+              <div className="p-2 sm:p-2.5 rounded-r-2xl bg-[#3A342F]/80 text-white backdrop-blur-md shadow-lg transform -translate-x-2 group-hover:translate-x-0 transition-transform">
+                <ChevronLeft className="w-5 h-5 sm:w-6 sm:h-6 text-[#EAF0E8]" />
+              </div>
+            </div>
+
+            {/* Right Page Turn Tap Zone */}
+            <div
+              id="tap-zone-next"
+              onClick={(e) => {
+                const target = e.target as HTMLElement;
+                if (target.closest('button, input, textarea, a, [data-interactive="true"]')) return;
+                if (currentChapterIndex < book.chapters.length - 1) {
+                  handleNextPage();
+                }
+              }}
+              className={`fixed right-0 top-24 bottom-20 w-8 sm:w-16 z-20 flex items-center justify-end pr-1 sm:pr-2 pointer-events-auto cursor-pointer group transition-opacity ${
+                currentChapterIndex >= book.chapters.length - 1 ? 'opacity-0 pointer-events-none' : 'opacity-20 hover:opacity-100'
+              }`}
+              title="Tap right side for Next Chapter"
+            >
+              <div className="p-2 sm:p-2.5 rounded-l-2xl bg-[#3A342F]/80 text-white backdrop-blur-md shadow-lg transform translate-x-2 group-hover:translate-x-0 transition-transform">
+                <ChevronRight className="w-5 h-5 sm:w-6 sm:h-6 text-[#EAF0E8]" />
+              </div>
+            </div>
+          </>
+        )}
+
+        {/* Transient Tap Feedback Splash */}
+        {tapFeedbackSide && (
+          <div
+            className={`fixed top-1/2 -translate-y-1/2 z-40 pointer-events-none p-4 rounded-3xl bg-[#3A342F]/90 text-white backdrop-blur-md shadow-2xl flex items-center gap-3 animate-fade-in ${
+              tapFeedbackSide === 'left' ? 'left-6' : 'right-6'
+            }`}
+          >
+            {tapFeedbackSide === 'left' ? (
+              <>
+                <ChevronLeft className="w-6 h-6 text-[#E0A868]" />
+                <span className="font-serif font-bold text-sm">Previous Chapter</span>
+              </>
+            ) : (
+              <>
+                <span className="font-serif font-bold text-sm">Next Chapter</span>
+                <ChevronRight className="w-6 h-6 text-[#E0A868]" />
+              </>
+            )}
+          </div>
+        )}
+
         {/* Chapter Header Banner */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-[#E8E2D6] pb-4">
           <div className="space-y-1">
@@ -1391,13 +1608,13 @@ export const StoryReader: React.FC<StoryReaderProps> = ({
             </h1>
           </div>
 
-          {/* Chapter Navigation Dots */}
+          {/* Chapter Navigation Dots & Quick Turn Buttons */}
           <div className="flex items-center gap-2">
             <button
-              onClick={() => onUpdateBook({ ...book, currentChapterIndex: Math.max(0, currentChapterIndex - 1) })}
+              onClick={handlePreviousPage}
               disabled={currentChapterIndex === 0}
-              className="p-1.5 rounded-lg bg-white hover:bg-[#EAE5DC] disabled:opacity-40 text-[#4A443F] border border-[#DFD8CA] transition-colors shadow-xs"
-              title="Previous Chapter"
+              className="p-2 rounded-xl bg-white hover:bg-[#EAE5DC] disabled:opacity-30 text-[#4A443F] border border-[#DFD8CA] transition-colors shadow-xs"
+              title="Previous Chapter (or Tap Left)"
             >
               <ChevronLeft className="w-4 h-4" />
             </button>
@@ -1407,9 +1624,9 @@ export const StoryReader: React.FC<StoryReaderProps> = ({
                 <button
                   key={ch.id}
                   onClick={() => onUpdateBook({ ...book, currentChapterIndex: idx })}
-                  className={`h-2 rounded-full transition-all ${
+                  className={`h-2.5 rounded-full transition-all ${
                     idx === currentChapterIndex
-                      ? 'w-6 bg-[#5B6B56]'
+                      ? 'w-7 bg-[#5B6B56]'
                       : 'w-2 bg-[#D5CDBD] hover:bg-[#8C9A86]'
                   }`}
                   title={`Go to Chapter ${ch.chapterNumber}`}
@@ -1418,15 +1635,10 @@ export const StoryReader: React.FC<StoryReaderProps> = ({
             </div>
 
             <button
-              onClick={() =>
-                onUpdateBook({
-                  ...book,
-                  currentChapterIndex: Math.min(book.chapters.length - 1, currentChapterIndex + 1),
-                })
-              }
+              onClick={handleNextPage}
               disabled={currentChapterIndex >= book.chapters.length - 1}
-              className="p-1.5 rounded-lg bg-white hover:bg-[#EAE5DC] disabled:opacity-40 text-[#4A443F] border border-[#DFD8CA] transition-colors shadow-xs"
-              title="Next Chapter"
+              className="p-2 rounded-xl bg-white hover:bg-[#EAE5DC] disabled:opacity-30 text-[#4A443F] border border-[#DFD8CA] transition-colors shadow-xs"
+              title="Next Chapter (or Tap Right)"
             >
               <ChevronRight className="w-4 h-4" />
             </button>
@@ -1863,6 +2075,270 @@ export const StoryReader: React.FC<StoryReaderProps> = ({
           </span>
         )}
       </motion.button>
+
+      {/* Mobile Reading Tools Drawer / Bottom Sheet */}
+      {isMobileToolsDrawerOpen && (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/70 backdrop-blur-sm animate-fade-in">
+          <div className="w-full max-w-lg bg-[#FAF8F5] sm:rounded-3xl rounded-t-3xl border border-[#DFD8CA] shadow-2xl overflow-hidden max-h-[88vh] flex flex-col text-[#4A443F]">
+            {/* Drawer Header */}
+            <div className="p-4 bg-[#F5EFEB] border-b border-[#DFD8CA] flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Sliders className="w-4 h-4 text-[#5B6B56]" />
+                <h3 className="font-serif font-bold text-[#3A342F] text-base">
+                  Story Reading Tools & Controls
+                </h3>
+              </div>
+              <button
+                id="close-mobile-tools-btn"
+                onClick={() => setIsMobileToolsDrawerOpen(false)}
+                className="p-1.5 rounded-full text-[#78716A] hover:text-[#3A342F] hover:bg-[#EAE5DC]"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Scrollable Action Grid */}
+            <div className="p-4 overflow-y-auto space-y-4 text-xs">
+              {/* One-Hand Navigation Quick Setting */}
+              <div className="p-3.5 rounded-2xl bg-white border border-[#DFD8CA] flex items-center justify-between shadow-xs">
+                <div className="space-y-0.5">
+                  <div className="font-bold text-[#3A342F] flex items-center gap-1.5">
+                    <span>👆</span>
+                    <span>One-Hand Tap Navigation</span>
+                  </div>
+                  <div className="text-[11px] text-[#78716A]">
+                    Tap left edge for prev, tap right edge for next
+                  </div>
+                </div>
+                <button
+                  id="toggle-one-hand-tap-btn"
+                  onClick={() => setOneHandTapEnabled(!oneHandTapEnabled)}
+                  className={`px-3 py-1.5 rounded-xl font-bold transition-colors ${
+                    oneHandTapEnabled
+                      ? 'bg-[#5B6B56] text-white'
+                      : 'bg-[#EAE5DC] text-[#78716A]'
+                  }`}
+                >
+                  {oneHandTapEnabled ? 'ON' : 'OFF'}
+                </button>
+              </div>
+
+              {/* Main Reading Utilities Grid */}
+              <div className="grid grid-cols-2 gap-2.5">
+                {/* Journey Map */}
+                <button
+                  id="mobile-journey-map-btn"
+                  onClick={() => {
+                    setIsMobileToolsDrawerOpen(false);
+                    setIsJourneyMapOpen(true);
+                  }}
+                  className="p-3 rounded-2xl bg-[#EAF0E8] border border-[#CAD7C6] text-left space-y-1 hover:bg-[#DFEAD9] transition-colors"
+                >
+                  <div className="flex items-center justify-between">
+                    <Compass className="w-4 h-4 text-[#5B6B56]" />
+                    <span className="text-[10px] uppercase font-bold text-[#3B5436]">Map</span>
+                  </div>
+                  <div className="font-bold text-[#3A342F]">Journey Map</div>
+                  <div className="text-[10px] text-[#5B6B56]">Interactive chronicle cartography</div>
+                </button>
+
+                {/* Bedtime Mode */}
+                <button
+                  id="mobile-bedtime-btn"
+                  onClick={() => {
+                    handleToggleBedtimeMode();
+                  }}
+                  className={`p-3 rounded-2xl border text-left space-y-1 transition-colors ${
+                    readingSettings.bedtimeMode
+                      ? 'bg-[#E0A868]/20 border-[#E0A868] text-[#1C1815]'
+                      : 'bg-white border-[#DFD8CA] hover:bg-[#F5EFEB]'
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <Moon className={`w-4 h-4 ${readingSettings.bedtimeMode ? 'fill-[#E0A868] text-[#E0A868]' : 'text-[#78716A]'}`} />
+                    <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${readingSettings.bedtimeMode ? 'bg-[#E0A868] text-white' : 'bg-black/5 text-[#78716A]'}`}>
+                      {readingSettings.bedtimeMode ? 'Active' : 'Off'}
+                    </span>
+                  </div>
+                  <div className="font-bold text-[#3A342F]">Bedtime Mode</div>
+                  <div className="text-[10px] text-[#78716A]">Warm evening glow & soft tone</div>
+                </button>
+
+                {/* Margin Notes */}
+                <button
+                  id="mobile-margin-notes-btn"
+                  onClick={() => {
+                    setIsMobileToolsDrawerOpen(false);
+                    setIsMarginNotesOpen(true);
+                  }}
+                  className="p-3 rounded-2xl bg-white border border-[#DFD8CA] text-left space-y-1 hover:bg-[#F5EFEB] transition-colors"
+                >
+                  <div className="flex items-center justify-between">
+                    <StickyNote className="w-4 h-4 text-[#5B6B56]" />
+                    {currentChapterNotesCount > 0 && (
+                      <span className="text-[10px] font-bold px-1.5 py-0.2 rounded-full bg-[#EAF0E8] text-[#3B5436]">
+                        {currentChapterNotesCount}
+                      </span>
+                    )}
+                  </div>
+                  <div className="font-bold text-[#3A342F]">Margin Notes</div>
+                  <div className="text-[10px] text-[#78716A]">Private chapter annotations</div>
+                </button>
+
+                {/* Plot Memory */}
+                <button
+                  id="mobile-memory-btn"
+                  onClick={() => {
+                    setIsMobileToolsDrawerOpen(false);
+                    setIsMemoryOpen(true);
+                  }}
+                  className="p-3 rounded-2xl bg-white border border-[#DFD8CA] text-left space-y-1 hover:bg-[#F5EFEB] transition-colors"
+                >
+                  <div className="flex items-center justify-between">
+                    <Layers className="w-4 h-4 text-[#B45F3C]" />
+                    <span className="text-[10px] uppercase font-bold text-[#B45F3C]">Lore</span>
+                  </div>
+                  <div className="font-bold text-[#3A342F]">Plot Memory</div>
+                  <div className="text-[10px] text-[#78716A]">Inventory & clues tracker</div>
+                </button>
+
+                {/* Coloring Studio Keepsake */}
+                <button
+                  id="mobile-coloring-btn"
+                  onClick={() => {
+                    setIsMobileToolsDrawerOpen(false);
+                    setIsColoringModalOpen(true);
+                  }}
+                  className="p-3 rounded-2xl bg-[#FAF0EB] border border-[#F0D5C7] text-left space-y-1 hover:bg-[#F6E3DB] transition-colors"
+                >
+                  <div className="flex items-center justify-between">
+                    <Palette className="w-4 h-4 text-[#B45F3C]" />
+                    <span className="text-[10px] uppercase font-bold text-[#B45F3C]">Art</span>
+                  </div>
+                  <div className="font-bold text-[#3A342F]">Coloring Keepsake</div>
+                  <div className="text-[10px] text-[#8C5D39]">Printable line-art & dedication</div>
+                </button>
+
+                {/* Typography & Themes */}
+                <button
+                  id="mobile-settings-btn"
+                  onClick={() => {
+                    setIsMobileToolsDrawerOpen(false);
+                    setShowSettingsDrawer(true);
+                  }}
+                  className="p-3 rounded-2xl bg-white border border-[#DFD8CA] text-left space-y-1 hover:bg-[#F5EFEB] transition-colors"
+                >
+                  <div className="flex items-center justify-between">
+                    <Sliders className="w-4 h-4 text-[#5B6B56]" />
+                    <span className="text-[10px] uppercase font-bold text-[#5B6B56]">Style</span>
+                  </div>
+                  <div className="font-bold text-[#3A342F]">Font & Theme</div>
+                  <div className="text-[10px] text-[#78716A]">Aesthetics, colors & sizes</div>
+                </button>
+              </div>
+
+              {/* Ambient Soundscapes Section */}
+              <div className="p-3.5 rounded-2xl bg-white border border-[#DFD8CA] space-y-2.5 shadow-xs">
+                <div className="flex items-center justify-between font-bold text-[#3A342F]">
+                  <div className="flex items-center gap-1.5">
+                    <Music className="w-4 h-4 text-[#B45F3C]" />
+                    <span>Story Soundscape Ambience</span>
+                  </div>
+                  <span className="text-[10px] uppercase font-bold text-[#5B6B56]">
+                    {readingSettings.ambientSound && readingSettings.soundscapeType !== 'none'
+                      ? SOUNDSCAPE_OPTIONS.find((s) => s.id === readingSettings.soundscapeType)?.label
+                      : 'Muted'}
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-3 gap-1.5">
+                  {SOUNDSCAPE_OPTIONS.slice(0, 6).map((opt) => (
+                    <button
+                      key={opt.id}
+                      onClick={() => handleToggleSoundscape(opt.id)}
+                      className={`p-2 rounded-xl text-center transition-colors ${
+                        readingSettings.soundscapeType === opt.id
+                          ? 'bg-[#EAF0E8] text-[#3B5436] font-bold border border-[#CAD7C6]'
+                          : 'bg-[#FAF8F5] text-[#4A443F] hover:bg-[#F5EFEB] border border-[#DFD8CA]'
+                      }`}
+                    >
+                      <div className="text-sm">{opt.icon}</div>
+                      <div className="text-[10px] truncate">{opt.label}</div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Language & Translation */}
+              <div className="p-3.5 rounded-2xl bg-white border border-[#DFD8CA] space-y-2.5 shadow-xs">
+                <div className="flex items-center justify-between font-bold text-[#3A342F]">
+                  <div className="flex items-center gap-1.5">
+                    <Globe className="w-4 h-4 text-[#5B6B56]" />
+                    <span>Translation & Language</span>
+                  </div>
+                  <span className="text-[11px] font-bold text-[#5B6B56]">
+                    {currentLangOption.flag} {currentLangOption.nativeName}
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
+                  {SUPPORTED_LANGUAGES.map((lang) => (
+                    <button
+                      key={lang.id}
+                      onClick={() => handleSelectLanguage(lang.id)}
+                      className={`p-2 rounded-xl text-left flex items-center gap-1.5 transition-colors ${
+                        selectedLanguage === lang.id
+                          ? 'bg-[#EAF0E8] text-[#3B5436] font-bold border border-[#CAD7C6]'
+                          : 'bg-[#FAF8F5] text-[#4A443F] hover:bg-[#F5EFEB] border border-[#DFD8CA]'
+                      }`}
+                    >
+                      <span className="text-sm">{lang.flag}</span>
+                      <span className="text-[11px] truncate">{lang.name}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Export & Sharing Actions */}
+              <div className="p-3.5 rounded-2xl bg-white border border-[#DFD8CA] space-y-2 shadow-xs">
+                <div className="font-bold text-[#3A342F] flex items-center gap-1.5">
+                  <Download className="w-4 h-4 text-[#B45F3C]" />
+                  <span>Download & Keepsakes</span>
+                </div>
+                <div className="grid grid-cols-3 gap-1.5">
+                  <button
+                    onClick={() => {
+                      setIsMobileToolsDrawerOpen(false);
+                      handlePrintPDF();
+                    }}
+                    className="p-2 rounded-xl bg-[#FAF8F5] border border-[#DFD8CA] hover:bg-[#EAE5DC] text-center font-bold text-[#3A342F]"
+                  >
+                    🖨️ Print PDF
+                  </button>
+                  <button
+                    onClick={() => {
+                      setIsMobileToolsDrawerOpen(false);
+                      handleExportPDF();
+                    }}
+                    className="p-2 rounded-xl bg-[#FAF8F5] border border-[#DFD8CA] hover:bg-[#EAE5DC] text-center font-bold text-[#B45F3C]"
+                  >
+                    📥 PDF File
+                  </button>
+                  <button
+                    onClick={() => {
+                      setIsMobileToolsDrawerOpen(false);
+                      handleExportEPUB();
+                    }}
+                    className="p-2 rounded-xl bg-[#FAF8F5] border border-[#DFD8CA] hover:bg-[#EAE5DC] text-center font-bold text-[#5B6B56]"
+                  >
+                    📖 ePub
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Margin Notes Sidebar Component */}
       <MarginNotesSidebar

@@ -29,7 +29,7 @@ import {
   StoryChapter,
   TargetAudience,
 } from '../types';
-import { GENRE_PRESETS, ART_STYLES, KIDS_MORAL_THEMES } from '../utils/presets';
+import { GENRE_PRESETS, ART_STYLES, KIDS_MORAL_THEMES, getRandomGenreOrMashup, getWeightedSurpriseMashup } from '../utils/presets';
 import { CharacterCard } from './CharacterCard';
 import { loadStoryDraft, saveStoryDraft, clearStoryDraft, StoryDraft } from '../utils/storage';
 import confetti from 'canvas-confetti';
@@ -76,11 +76,12 @@ export const StoryCreator: React.FC<StoryCreatorProps> = ({
 
   // Genre & Art Style
   const [selectedGenre, setSelectedGenre] = useState<StoryGenre>(
-    initialDraft ? (initialDraft.selectedGenre as StoryGenre) : 'fantasy'
+    initialDraft ? (initialDraft.selectedGenre as StoryGenre) : 'solarpunk'
   );
   const [selectedArtStyle, setSelectedArtStyle] = useState<StoryArtStyle>(
-    initialDraft ? (initialDraft.selectedArtStyle as StoryArtStyle) : 'watercolor_storybook'
+    initialDraft ? (initialDraft.selectedArtStyle as StoryArtStyle) : 'hyper_articulated_realism'
   );
+  const [randomMashupInfo, setRandomMashupInfo] = useState<{ name: string; description: string; sampleSeed: string } | null>(null);
 
   // Blueprint & Anti-Repetition Settings
   const [title, setTitle] = useState(initialDraft ? initialDraft.title : '');
@@ -185,14 +186,12 @@ export const StoryCreator: React.FC<StoryCreatorProps> = ({
 
   const toggleCharacterInCast = (char: Character) => {
     if (selectedCast.some((c) => c.id === char.id)) {
-      if (selectedCast.length > 1) {
-        setSelectedCast(selectedCast.filter((c) => c.id !== char.id));
-      }
+      setSelectedCast(selectedCast.filter((c) => c.id !== char.id));
     } else {
-      if (selectedCast.length < 3) {
+      if (selectedCast.length < 4) {
         setSelectedCast([...selectedCast, char]);
       } else {
-        setSelectedCast([selectedCast[0], selectedCast[1], char]);
+        setSelectedCast([...selectedCast.slice(1), char]);
       }
     }
   };
@@ -695,7 +694,7 @@ export const StoryCreator: React.FC<StoryCreatorProps> = ({
             <div>
               <h3 className="font-serif text-base sm:text-lg font-bold text-[#3A342F] flex items-center gap-2">
                 <Users className="w-5 h-5 text-[#5B6B56]" />
-                Select Cast Members (Optional: 1 to 3)
+                Select Cast Members (Optional: 1 to 4)
               </h3>
               <p className="text-xs text-[#78716A]">
                 Choose characters from your roster, or proceed directly to let AI create custom heroes.
@@ -740,7 +739,7 @@ export const StoryCreator: React.FC<StoryCreatorProps> = ({
             </div>
           ) : (
             <div className="space-y-4">
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                 {characters.map((char) => {
                   const isSelected = selectedCast.some((c) => c.id === char.id);
                   return (
@@ -841,29 +840,88 @@ export const StoryCreator: React.FC<StoryCreatorProps> = ({
 
           {/* Genre selection */}
           <div className="space-y-4">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div>
                 <h3 className="font-serif text-base sm:text-lg font-bold text-[#3A342F] flex items-center gap-2">
                   <Compass className="w-5 h-5 text-[#5B6B56]" />
-                  Select Story Genre
+                  Select Story Genre & Worldbuilding
                 </h3>
                 <p className="text-xs text-[#78716A]">
-                  Each genre drives specialized vocabulary, trope subversions, and worldbuilding logic.
+                  Choose a speculative, atmospheric, or character-driven genre — or roll a creative subgenre mashup!
                 </p>
               </div>
+              <button
+                type="button"
+                onClick={() => {
+                  const rolled = getWeightedSurpriseMashup();
+                  setSelectedGenre(rolled.genreId);
+                  setTone(rolled.defaultTone);
+                  setRandomMashupInfo({
+                    name: rolled.name,
+                    description: rolled.description,
+                    sampleSeed: rolled.sampleSeed,
+                    compatibilityNote: rolled.compatibilityNote,
+                  });
+                  if (!synopsis) {
+                    setSynopsis(rolled.sampleSeed);
+                  }
+                }}
+                className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-gradient-to-r from-amber-500 via-rose-500 to-purple-600 hover:from-amber-600 hover:to-purple-700 text-white text-xs font-bold shadow-sm transition-all hover:scale-[1.02] active:scale-95 shrink-0"
+              >
+                <Sparkles className="w-4 h-4 animate-spin-slow" /> 🎲 Surprise Me! Weighted Mashup
+              </button>
             </div>
+
+            {randomMashupInfo && (
+              <div className="p-4 rounded-2xl bg-gradient-to-r from-amber-50 via-rose-50 to-orange-50 border border-amber-200 text-amber-900 text-xs space-y-1.5 shadow-xs">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2 font-bold font-serif text-sm text-amber-950">
+                    <Sparkles className="w-4 h-4 text-amber-600" />
+                    Weighted Subgenre Mashup: {randomMashupInfo.name}
+                  </div>
+                  <span className="px-2 py-0.5 rounded-full bg-amber-200/80 text-amber-950 font-mono text-[10px] font-bold">
+                    Surprise Mode Active
+                  </span>
+                </div>
+                <p className="text-amber-900/90 leading-relaxed">{randomMashupInfo.description}</p>
+                {randomMashupInfo.compatibilityNote && (
+                  <p className="text-[11px] font-medium text-amber-700/90 italic">
+                    {randomMashupInfo.compatibilityNote}
+                  </p>
+                )}
+                <p className="font-medium text-amber-900 pt-0.5">
+                  <span className="font-bold text-amber-950">Suggested Story Context:</span> "{randomMashupInfo.sampleSeed}"
+                </p>
+              </div>
+            )}
 
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               {GENRE_PRESETS.map((g) => {
-                const isSelected = selectedGenre === g.id;
+                const isSelected = selectedGenre === g.id || (g.id === 'random_subgenre_mashup' && selectedGenre.includes('+'));
                 const isRecommendedForMode = isKidsMode ? g.isKidsFriendly : true;
                 return (
                   <div
                     key={g.id}
                     id={`genre-card-${g.id}`}
                     onClick={() => {
-                      setSelectedGenre(g.id);
-                      setTone(g.defaultTone);
+                      if (g.id === 'random_subgenre_mashup') {
+                        const rolled = getWeightedSurpriseMashup();
+                        setSelectedGenre(rolled.genreId);
+                        setTone(rolled.defaultTone);
+                        setRandomMashupInfo({
+                          name: rolled.name,
+                          description: rolled.description,
+                          sampleSeed: rolled.sampleSeed,
+                          compatibilityNote: rolled.compatibilityNote,
+                        });
+                        if (!synopsis) {
+                          setSynopsis(rolled.sampleSeed);
+                        }
+                      } else {
+                        setSelectedGenre(g.id);
+                        setTone(g.defaultTone);
+                        setRandomMashupInfo(null);
+                      }
                     }}
                     className={`p-4 rounded-2xl cursor-pointer border transition-all duration-300 relative overflow-hidden flex flex-col justify-between ${
                       isSelected

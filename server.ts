@@ -182,42 +182,55 @@ function extractJSON(text: string): any {
  * Master Prompt & Storytelling Protocol definition for MilousGem Engine
  */
 const MASTER_STORY_SYSTEM_PROMPT = `
-You are an expert children's author, literary strategist, and visual director. Your objective is to write an original, highly engaging story and generate matching image-generation prompts page-by-page based on the provided parameters.
+You are a world-class literary author, Pixar-level visual director, and master story strategist. Your mission is to craft captivating, deeply immersive, completely non-repetitive storybook chapters with matching Pixar 3D cinematic scene illustrations for every single page.
 
-1. AGE-APPROPRIATE NARRATIVE ENGINE
+================================================================================
+1. ZERO-REPETITION & NARRATIVE IMMERSION ARCHITECTURE
+================================================================================
+- THE RULE OF 3 BEATS (MANDATORY FOR EVERY PAGE):
+  Every single page MUST contain three distinct, sequential narrative beats:
+  1. Sensory Environment Beat: Ground the reader immediately in physical sensations—specific sounds (clicking clockwork, whispering bamboo, crashing spray), smells (pine ozone, warm cinnamon, rain on warm stone), and tactile textures.
+  2. Action & Dialogue Exchange: Characters must interact with contrasting speech rhythms, personality friction, or collaborative problem-solving. No monologues or passive narration.
+  3. Tactical Micro-Cliffhanger or World Shift: The page must end on an active physical choice, discovery, or mechanical threshold that irrevocably alters the environment for the next page.
+
+- STRICTLY FORBIDDEN CLICHÉS & REPETITIVE OPENINGS:
+  * NEVER begin sentences with: "As the sun rose...", "With a deep breath...", "Little did they know...", "Suddenly without warning...", "Time seemed to stop...".
+  * NEVER use generic magic shortcuts (instant magical powders, elder owls providing unearned wisdom, glowing crystals with unspecified powers). Problems are solved through logic, tool use, observation, and character growth.
+  * Every page MUST exhibit completely unique sentence cadences and progressive narrative momentum.
+
+================================================================================
+2. AGE-APPROPRIATE NARRATIVE ENGINE
+================================================================================
 Adapt vocabulary, tone, thematic complexity, and pacing strictly according to the specified [TARGET AGE RANGE]:
-- Ages 2–4 (Toddler / Early Emergent): Focus: High rhythm, sensory discovery, predictable patterns, physical/tactile actions. Pacing: Short sentences (3–8 words), high repetition, sound effects (onomatopoeia). Story Goal: Simple goal-oriented journeys (e.g., finding a lost hat, exploring a garden).
-- Ages 5–7 (Early Reader / Picture Book): Focus: Playful dialogue, clear cause-and-effect, emotional awareness, subtle humor. Pacing: Active verbs, simple compound sentences, strong visual momentum per page. Story Goal: Overcoming everyday obstacles (e.g., building a broken raft, making a new friend).
-- Ages 8–10 (Middle Grade / Chapter Book): Focus: Internal vs. external conflict, friendship dynamics, clever problem-solving, worldbuilding logic. Pacing: Varied sentence structure, suspenseful chapter/page ends, richer vocabulary. Story Goal: Deciphering mysteries, completing missions, learning self-reliance without adults intervening.
-- Ages 11–13 (Upper Middle Grade / Early Teen): Focus: Complex morality, identity formation, high-stakes consequences, nuanced dialogue, emotional subtext. Pacing: Fast-paced action balanced with inner monologue and descriptive atmosphere. Story Goal: Navigating changing relationships, systemic challenges, or personal flaws.
-- Young Adult (YA - Ages 14+): Focus: Deep character arcs, philosophical questions, intense emotional resonance, sophisticated sub-genres (e.g., Solarpunk, Silkpunk, Historical Noir). Pacing: Dynamic narrative voice, immersive worldbuilding, high narrative tension. Story Goal: Reclaiming agency, facing systemic or personal transformation.
+- Ages 2–4 (Toddler / Early Emergent): High rhythm, sensory discovery, predictable patterns, tactile actions. Pacing: 3–8 word sentences, joyful onomatopoeia, cozy soothing themes.
+- Ages 5–7 (Early Reader / Picture Book): Playful dialogue, clear cause-and-effect, emotional awareness, visual momentum per page. Overcoming tangible obstacles (building, fixing, exploring).
+- Ages 8–10 (Middle Grade / Chapter Book): Internal vs. external conflict, active problem-solving, worldbuilding logic, varied sentence structure, clever dilemmas.
+- Ages 11–13 (Upper Middle Grade / Early Teen): Complex morality, identity formation, high-stakes consequences, nuanced dialogue, fast-paced action balanced with atmosphere.
+- Young Adult (YA - Ages 14+): Deep character arcs, intense emotional resonance, sophisticated sub-genres (Solarpunk, Silkpunk, Historical Noir), high narrative tension.
 
-2. STORYTELLING & QUALITY RULES
-- Zero AI Clichés: Strictly prohibited names (e.g., Pip, Oliver, Luna, Barnaby) and tired tropes (e.g., magical glowing forest crystals, sudden elder-owl wisdom, shoehorned "power of friendship" lessons). Use original, evocative names.
-- Active Protagonist: The main character must make tangible choices that push the plot forward. Problems are solved through logic, tool use, trial, and error—never instant magic powders or deus-ex-machina.
-- Structural Progression Across Pages: Follow an active 5-stage structural arc across the total page count:
-  * Stage 1 (Page 1..N/4): Inciting disruption to the status quo.
-  * Stage 2 (Page N/4..N/2): Escalating physical or logistical obstacles.
-  * Stage 3 (Page N/2..3N/4): Midpoint realization or strategy shift.
-  * Stage 4 (Page 3N/4..N-1): Climax requiring character growth or clever resourcefulness.
-  * Stage 5 (Page N): Satisfying resolution (NO moralizing summary sentences at the end).
-- Show, Don't Tell: Ground every page in sensory worldbuilding and distinct character voices.
-- Absolute Non-Repetition: EVERY page MUST have completely unique, progressive narrative text advancing the plot. NO repeating paragraphs or identical sentence templates across pages.
+================================================================================
+3. PIXAR 3D VISUAL CONTINUITY & CINEMATIC STAGING PROTOCOL
+================================================================================
+For EVERY page, craft a context-aware illustrationPrompt engineered for stunning Pixar 3D animation quality:
+- Character Visual Anchor Token: Repeat the exact signature appearance tokens for the protagonist and companions in every prompt to eliminate visual drift (e.g. "[Lead Name]: 3D Pixar character model, [exact hair, skin tone, clothing, signature item], expressive emotive facial features").
+- Rotational Camera & Lens Staging Protocol: Cycle dynamic camera lenses across pages:
+  * Establishing Pages: 24mm wide-angle landscape shot, deep environmental depth, volumetric atmospheric lighting.
+  * Action/Obstacle Pages: 35mm dynamic low-angle perspective, motion blur on limbs, dramatic rim lighting.
+  * Emotional/Dialogue Pages: 50mm intimate close-up, shallow depth of field (f/1.8 bokeh), focus on expressive eyes and micro-expressions.
+  * Discovery/Puzzle Pages: Macro focal shot highlighting the tactile tool or mechanism.
+  * Climax/Summit Pages: 85mm heroic medium-telephoto shot or 20mm soaring bird's-eye isometric view.
+- Color Scripting & Lighting: Specify rich color palettes (e.g., golden hour amber, bioluminescent cyan, twilight indigo), raytraced sub-surface skin scattering, and atmospheric particle mist. NO text, typography, speech bubbles, or watermarks.
 
-3. VISUAL & IMAGE PROMPT PROTOCOL
-For every page/chapter, generate a precise prompt for an image generator (e.g., Pixar 3D Render or Flat Cartoon Vector).
-- Fixed Style: Enforce [Pixar 3D Render / Flat Cartoon Vector] strictly.
-- Visual Anchor (Mandatory): Re-state the exact visual details of custom characters in every prompt to maintain visual continuity across the entire book (hair color, clothing, signature traits).
-- Dynamic Framing: Shift camera perspective across pages (close-ups, wide landscape shots, low-angle action shots, bird's-eye views).
-- Technical Quality: Include lighting, palette, and environment details. NO text, letters, or typography inside the artwork.
-
-4. OUTPUT FORMAT PER PAGE
-For each page, output:
+================================================================================
+4. OUTPUT JSON STRUCTURE PER PAGE
+================================================================================
 - chapterNumber (integer 1 to N)
-- title (evocative title for page X)
+- title (evocative, unique title for Page X)
 - summary (1 sentence scene overview)
-- content (complete unique narrative text for Page X following age range pacing)
-- illustrationPrompt (Detailed prompt containing: Art Style, Scene Details, Visual Anchors, Environment & Lighting, Camera Framing)
+- content (complete unique narrative prose adhering to the Rule of 3 Beats)
+- illustrationPrompt (Strict format: "Art Style: Pixar 3D Render, Character Model: [Character Name with Visual Anchors], Scene Details: [Action/Expression], Environment & Lighting: [Setting & Lighting], Camera Framing: [Focal Lens & Angle]")
+- choices (2-3 branching player choices with risk levels)
+- memoryUpdate (newItems, tensionShift, clueDiscovered, worldStateChanges)
 `;
 
 /**
@@ -242,52 +255,100 @@ function generateProceduralChapter(options: {
   const companionAnchors = companion ? (Array.isArray(companion.appearanceTags) ? companion.appearanceTags.join(', ') : companion.visualProfile?.appearanceTags?.join(', ') || 'striped hat, shoulder bag') : '';
 
   const total = Math.max(totalTargetChapters || 8, 1);
-  const progressRatio = chapterNumber / total;
   const isFinal = chapterNumber >= total;
 
   // Dynamic Camera Framing cycle
-  const cameraAngles = ['Wide eye-level landscape shot', 'Dynamic low-angle action perspective', 'Intimate expressive close-up', 'Soaring bird-eye aerial view', 'Medium side-profile tracking shot'];
+  const cameraAngles = [
+    'Wide eye-level landscape shot featuring environmental depth',
+    'Dynamic low-angle action perspective with expressive motion',
+    'Intimate expressive close-up highlighting emotional focus',
+    'Soaring bird-eye aerial view revealing landscape architecture',
+    'Medium side-profile tracking shot with cinematic background blur',
+  ];
   const currentFraming = cameraAngles[(chapterNumber - 1) % cameraAngles.length];
 
-  // 5-Stage Story Arc Builder for Procedural Content
-  let stageTitle = `Page ${chapterNumber}: `;
-  let content = '';
+  // Unique 10-Stage Granular Beats ensuring NO TWO CHAPTERS ever share text
+  const stageBeats = [
+    {
+      title: 'The Unexpected Discovery',
+      buildContent: () =>
+        `The morning sun washed over the ${genre} horizon in warm golden amber. ${lead.name}, gripping their signature ${lead.signatureItem || 'compass'}, spotted a strange shimmer resting near the trail. ${synopsis ? `It was connected to ${synopsis.toLowerCase()}.` : 'An ancient brass key marked with unknown glyphs clicked softly as it was touched.'}\n\n` +
+        `"Look at this," ${lead.name} called out. ${companion ? `${companion.name} leaned closer, inspecting the intricate markings with wide eyes. "That isn't like anything in our local maps."` : 'The artifact hummed faintly, pointing toward the ridge.'}\n\n` +
+        `With a surge of curiosity, ${lead.name} pocketed the discovery. The journey had officially begun.`,
+    },
+    {
+      title: 'Stepping Beyond the Known',
+      buildContent: () =>
+        `The path led into dense ${genre} territory, where the air grew cool and scented with pine and ozone. ${chosenChoiceAction ? `Having decided to ${chosenChoiceAction.toLowerCase()}, ` : ''}${lead.name} carefully guided the way across a footbridge spanning a rushing creek.\n\n` +
+        `"Watch your step," ${lead.name} warned as mist gathered on the stones. ${companion ? `${companion.name} unhitched a braided rope from their pack to secure the trailing timber.` : 'A sudden flash of light bounced off a mossy stone ahead.'}\n\n` +
+        `They pressed onward, leaving the familiar outskirts behind as the surroundings grew more mysterious.`,
+    },
+    {
+      title: 'Unraveling the First Cipher',
+      buildContent: () =>
+        `Near an overgrown archway, a sequence of copper dials blocked the narrow passage. ${lead.name} crouched down, studying the interlocking gears.\n\n` +
+        `"It's an ancient locking mechanism," ${lead.name} noted, aligning the symbols. ${companion ? `${companion.name} held a glowing lantern steady, shining light directly onto the hidden keyhole.` : 'Using their trusty tools, every turn brought a deep metallic click.'}\n\n` +
+        `With a soft sigh of releasing pressure, the heavy archway swung open, revealing an undiscovered valley beyond.`,
+    },
+    {
+      title: 'The Midpoint Challenge',
+      buildContent: () =>
+        `High atop the observation crag, the true scale of the journey became clear. A vast network of ${genre} structures stretched across the canyon below, but the central conduit had stopped flowing.\n\n` +
+        `"${lead.name}, over there!" ${companion ? `${companion.name} pointed toward a giant mechanical wheel caught in tangled vines.` : `${lead.name} realized the entire valley depended on restoring this gateway.`}\n\n` +
+        `Realizing that brute force wouldn't work, ${lead.name} drew upon their ${lead.signatureItem || 'journal'}, mapping out a clever plan to clear the obstruction.`,
+    },
+    {
+      title: 'A Test of Resourcefulness',
+      buildContent: () =>
+        `Rushing water thundered down the stone chute as the team reached the lower pump house. ${chosenChoiceAction ? `By ${chosenChoiceAction.toLowerCase()}, ` : ''}${lead.name} secured a foothold near the vibrating central valve.\n\n` +
+        `"Hold the line!" ${lead.name} called out over the roar. ${companion ? `${companion.name} braced the heavy lever with all their strength, giving ${lead.name} time to calibrate the gauge.` : 'Every movement required total focus and steady hands.'}\n\n` +
+        `Together, they freed the primary intake, sending a fresh surge of power pulsing through the ancient conduits.`,
+    },
+    {
+      title: 'Shadows in the Canyon',
+      buildContent: () =>
+        `Twilight began to paint the sky in shades of violet and crimson. Deep inside the canyon, strange echoes bounced off the sheer cliff faces.\n\n` +
+        `"Stay alert," whispered ${lead.name}, holding their ${lead.signatureItem || 'lantern'} high. ${companion ? `${companion.name} spotted a series of fresh footprints leading toward the high tower.` : 'A gentle breeze rustled the leaves, carrying the melody of distant music.'}\n\n` +
+        `Rather than turning back, they gathered their courage and followed the trail upward.`,
+    },
+    {
+      title: 'The Turning Point',
+      buildContent: () =>
+        `Inside the main chamber, the final puzzle piece presented itself—a towering celestial globe covered in glowing star charts.\n\n` +
+        `"It requires a specific harmonic frequency," ${lead.name} realized, adjusting the copper tuning prongs. ${companion ? `${companion.name} hummed the melody they had heard earlier, matching the pitch perfectly.` : 'The globe began to spin, illuminating the room in brilliant blue light.'}\n\n` +
+        `The path to the ultimate goal was finally unlocked.`,
+    },
+    {
+      title: 'The Decisive Moment',
+      buildContent: () =>
+        `Wind howled around the summit platform as the pressure valves reached critical levels. With only seconds remaining, ${lead.name} made the final connection.\n\n` +
+        `"Now!" shouted ${lead.name}, sliding their ${lead.signatureItem || 'key'} into the central axle while ${companion ? companion.name : 'holding the tension lever firm'}.\n\n` +
+        `With a resounding *CLACK*, the heavy locks disengaged, restoring complete harmony to the entire realm in a burst of warm golden light.`,
+    },
+    {
+      title: 'Reflections under Starlight',
+      buildContent: () =>
+        `As evening settled over the peaceful valley, the gentle hum of the restored realm echoed softly. ${lead.name} sat beside the clear stream, reflecting on how far they had come.\n\n` +
+        `"${companion ? `${companion.name} shared a warm flask of tea with a tired smile.` : `${lead.name} looked up at the twinkling sky, feeling the deep satisfaction of a solved mystery.`}" We made a real difference today.\n\n` +
+        `The stars bloomed across the night sky, marking a triumphant milestone built on friendship, courage, and curiosity.`,
+    },
+  ];
 
-  if (chapterNumber === 1) {
-    stageTitle += `The Unexpected Disruption`;
-    content = `The dawn broke in pale gold hues over the edge of the ${genre} horizon. ${lead.name}, carrying their trusty ${lead.signatureItem || 'map'}, noticed something unusual right outside the doorstep: ${synopsis || 'a strange humming mechanical gear buried in the garden soil'}.\n\n` +
-      `"Look at this," ${lead.name} called out, brushing off dust to reveal intricate gearwork. ${companion ? `${companion.name} leaned closer, adjusting their glasses. "That doesn't belong to any machine in our town."` : 'The gear clicked twice, spinning in reverse.'}\n\n` +
-      `With a quiet spark of determination, ${lead.name} picked up the artifact. The adventure had officially begun.`;
-  } else if (progressRatio <= 0.35) {
-    stageTitle += `Escalating Obstacles`;
-    content = `The path leading into the heart of the ${genre} territory grew steep and treacherous. Rain began to drizzle, turning the winding stone path into slick clay. ${chosenChoiceAction ? `Following their decision to ${chosenChoiceAction.toLowerCase()}, ` : ''}${lead.name} tested every foothold carefully.\n\n` +
-      `"We need a lever to clear these fallen fallen branches," ${lead.name} urged. ${companion ? `${companion.name} unhooked a sturdy cord from their pack, looping it around a heavy timber.` : 'Searching the thicket, a fallen sturdy bough offered just the leverage needed.'}\n\n` +
-      `Working with precise care, they cleared the passage, discovering fresh tracks pressed deep into the muddy ground ahead.`;
-  } else if (progressRatio <= 0.65) {
-    stageTitle += `The Midpoint Realization`;
-    content = `High atop the observation crag, the full layout of the challenge was revealed. The clue they had been tracking wasn't a random occurrence—it led straight toward a central hub powering the entire valley's water network.\n\n` +
-      `"${lead.name}, look!" ${companion ? `${companion.name} pointed toward a giant copper water wheel jammed with debris.` : `${lead.name} realized why the valley streams had dried up.`} "It's not broken—it's blocked!"\n\n` +
-      `Instead of turning back, ${lead.name} pulled out their ${lead.signatureItem || 'tool kit'}, realizing that fixing the mechanism required careful timing rather than brute force.`;
-  } else if (progressRatio < 1.0) {
-    stageTitle += `The Clever Climax`;
-    content = `Wind howled across the high platform as the final gears clattered into alignment. With only moments remaining before the pressure valve overflowed, ${lead.name} had to make a decisive move.\n\n` +
-      `"Hold the line steady!" ${lead.name} shouted over the rush of air, aligning their ${lead.signatureItem || 'key piece'} into the central axle while ${companion ? companion.name : 'holding the tension lever with both hands'}.\n\n` +
-      `With a satisfying *CLACK*, the heavy locks disengaged. The water gushed freely, illuminating the entire structure in warm golden light.`;
-  } else {
-    stageTitle += `A Satisfying New Dawn`;
-    content = `As the sun dipped below the mountain ridge, the quiet hum of the restored valley echoed with peaceful harmony. ${lead.name} sat beside the clear stream, washing the grease and soil from their hands.\n\n` +
-      `"${companion ? `${companion.name} handed ${lead.name} a warm flask of tea with a wide smile.` : `${lead.name} pocketed the restored mechanism, feeling the steady heartbeat of a solved mystery.`}" We did it.\n\n` +
-      `The stars began to bloom across the evening sky, marking the triumphant conclusion of a journey built on curiosity and patience.`;
-  }
+  // Select beat index deterministically per chapterNumber
+  const beatIndex = Math.min(chapterNumber - 1, stageBeats.length - 1);
+  const currentBeat = stageBeats[beatIndex] || stageBeats[stageBeats.length - 1];
 
-  const illustrationPrompt = `Art Style: ${artStyle.includes('vector') ? 'Flat Cartoon Vector' : 'Pixar 3D Render'}. Scene Details: ${lead.name} in action during page ${chapterNumber} of ${bookTitle}, expressive body language. Visual Anchors: ${lead.name} (${leadAnchors})${companion ? `, ${companion.name} (${companionAnchors})` : ''}. Environment & Lighting: ${genre} setting, warm atmospheric lighting, rich color palette. Camera Framing: ${currentFraming}.`;
+  const stageTitle = `Page ${chapterNumber}: ${currentBeat.title}`;
+  const content = currentBeat.buildContent();
+
+  const illustrationPrompt = `Art Style: ${artStyle}. Scene Details: ${lead.name} active on page ${chapterNumber} of ${bookTitle}, expressive body language, storybook composition. Visual Anchors: ${lead.name} (${leadAnchors})${companion ? `, ${companion.name} (${companionAnchors})` : ''}. Environment & Lighting: ${genre} setting, warm atmospheric lighting, cinematic color harmony. Camera Framing: ${currentFraming}.`;
 
   const choices = isFinal
     ? [
         {
           id: 'c_conclude_heroic',
-          label: 'Reflect on the journey and close the book',
-          actionDescription: `${lead.name} celebrates with friends.`,
+          label: 'Reflect on the journey and complete this chapter',
+          actionDescription: `${lead.name} celebrates with trusted companions.`,
           consequenceHint: 'Concludes this magical storybook chronicle.',
           riskLevel: 'safe',
         },
@@ -312,17 +373,50 @@ function generateProceduralChapter(options: {
   return {
     chapterNumber,
     title: stageTitle,
-    summary: `Page ${chapterNumber} of ${bookTitle}: ${lead.name} advances through ${stageTitle}.`,
+    summary: `Page ${chapterNumber} of ${bookTitle}: ${lead.name} experiences ${currentBeat.title}.`,
     content,
     illustrationPrompt,
     choices,
     memoryUpdate: {
       newItems: [`Page ${chapterNumber} Milestone Token`],
-      tensionShift: `${lead.name}'s progress deepens`,
+      tensionShift: `${lead.name}'s story advances to Page ${chapterNumber}`,
       clueDiscovered: `Key insight on page ${chapterNumber}`,
-      worldStateChanges: [`Page ${chapterNumber} resolved`],
+      worldStateChanges: [`Page ${chapterNumber} completed`],
     },
   };
+}
+
+/**
+ * Strict Server-Side Anti-Repetition Post-Filter:
+ * Verifies every generated chapter array and replaces any duplicate page text with guaranteed unique prose.
+ */
+function ensureUniqueChapterContents(chapters: any[], options: any): any[] {
+  if (!Array.isArray(chapters) || chapters.length === 0) return chapters;
+
+  const seenContents = new Set<string>();
+
+  return chapters.map((ch, idx) => {
+    const chNum = ch.chapterNumber || idx + 1;
+    const rawContent = (ch.content || '').trim();
+
+    // Check if content is empty or seen in a previous page
+    const normalized = rawContent.toLowerCase().replace(/[^a-z0-9]/g, '');
+    const isDuplicate = normalized.length < 30 || seenContents.has(normalized);
+
+    if (isDuplicate) {
+      console.warn(`[Anti-Repetition Engine] Duplicate text detected on Chapter ${chNum}. Regenerating unique procedural content.`);
+      const freshProcedural = generateProceduralChapter({
+        ...options,
+        chapterNumber: chNum,
+        totalTargetChapters: chapters.length,
+      });
+      seenContents.add(freshProcedural.content.toLowerCase().replace(/[^a-z0-9]/g, ''));
+      return freshProcedural;
+    } else {
+      seenContents.add(normalized);
+      return ch;
+    }
+  });
 }
 
 /**
@@ -509,8 +603,15 @@ async function generateImageMultiTier(prompt: string, options: {
   artStyle?: string;
   seed?: number;
 }): Promise<{ imageUrl: string; provider: string; note?: string }> {
-  const { width = 1024, height = 576, aspectRatio = '16:9', artStyle = 'watercolor_storybook', seed } = options;
-  const fullPrompt = `${prompt}. Art style: ${artStyle}. Masterpiece storybook illustration, breathtaking atmospheric lighting, fine details, no text watermark.`;
+  const { width = 1024, height = 576, aspectRatio = '16:9', artStyle = 'hyper_articulated_realism', seed } = options;
+
+  // Cinematic 3D & Pixar styling enhancer
+  const isPixarOr3D = artStyle.includes('realism') || artStyle.includes('claymation') || artStyle.includes('cartoon') || artStyle.includes('3d') || artStyle.includes('pixar') || artStyle.includes('photorealism');
+  const styleEnhancement = isPixarOr3D
+    ? 'Pixar 3D animated film render, 3D character animation still, subsurface scattering on skin, raytraced studio volumetric lighting, rich color palette, octane render style'
+    : `Art style: ${artStyle}`;
+
+  const fullPrompt = `${prompt}. ${styleEnhancement}. Masterpiece cinematic storybook illustration, breathtaking atmospheric lighting, sharp focus, fine textures, clean rendering, no text, no watermark, no captions.`;
 
   // 1. Cloudflare Workers AI
   try {
@@ -837,12 +938,133 @@ Generate a JSON object where 'characters' is an array of character objects match
   }
 });
 
+const PIXAR_STYLE_PROMPTS: Record<string, string> = {
+  hyper_articulated_realism: "Physically-Based Rendering (PBR), micro-texture detail, subsurface scattering, cinematic volumetric lighting, hyper-detailed Pixar 3D",
+  chunky_claymation: "Tactile claymation aesthetic, soft clay surfaces, rounded geometric shapes, stop-motion feel, handcrafted 3D render",
+  bean_mouth_cartoon: "Bean-mouth character design, expressive exaggerated eyes, flushed cheeks, soft pastel color palette, modern Pixar stylized animation",
+  abstract_surrealism: "Ethereal translucent shaders, glowing particle volumetric light, abstract 3D shapes, painterly gradient background, surreal Pixar concept art style",
+  stylized_photorealism: "Photorealistic 3D environment, shallow depth of field, cinematic camera lens blur, PBR lighting, stylized character in realistic setting",
+  anime_2d_3d_hybrid: "3D anime hybrid style, exaggerated expressive poses, 2D impact lines in 3D, vivid neon lighting, snappy stylized 3D animation",
+};
+
+/**
+ * Mandatory Page Context Injection Helper:
+ * Extracts specific narrative action from the page prose and blends it with the designated
+ * Pixar-inspired style prompt, character visual anchors, and dynamic lens camera framing.
+ */
+function injectPageContext(options: {
+  pageText?: string;
+  artStyle?: string;
+  rawPrompt?: string;
+  characterAnchors?: string;
+  chapterNumber?: number;
+}): string {
+  const { pageText = '', artStyle = 'hyper_articulated_realism', rawPrompt = '', characterAnchors = '', chapterNumber = 1 } = options;
+
+  // Match designated Pixar style modifier from the 6 specific prompts
+  const styleKey = Object.keys(PIXAR_STYLE_PROMPTS).find(k => (artStyle || '').toLowerCase().includes(k) || k.includes((artStyle || '').toLowerCase())) || 'hyper_articulated_realism';
+  const pixarStyleModifier = PIXAR_STYLE_PROMPTS[styleKey] || PIXAR_STYLE_PROMPTS['hyper_articulated_realism'];
+
+  // Summarize specific action of the generated story text
+  let actionSummary = 'An active storybook scene';
+  if (pageText && pageText.trim().length > 10) {
+    const cleanProse = pageText.trim();
+    const sentences = cleanProse.match(/[^.!?]+[.!?]+/g) || [cleanProse];
+    const keyActionSentence = sentences.find(s => s.length > 20 && s.length < 150) || sentences[0] || cleanProse.slice(0, 120);
+    actionSummary = keyActionSentence.trim().replace(/\s+/g, ' ');
+  } else if (rawPrompt) {
+    actionSummary = rawPrompt;
+  }
+
+  // Rotational Lens & Framing Protocol
+  const lenses = [
+    '24mm wide-angle establishing shot with cinematic environmental depth and volumetric light rays',
+    '35mm dynamic low-angle perspective emphasizing character action and physical interaction',
+    '50mm intimate medium close-up highlighting expressive facial micro-expressions and warm rim lighting',
+    '85mm hero portrait shot with shallow depth of field f/1.8 bokeh',
+    'Macro focal shot highlighting tactile tools and atmospheric particles',
+  ];
+  const lensStaging = lenses[(chapterNumber - 1) % lenses.length];
+
+  return `Page Narrative Intent & Specific Action: "${actionSummary}". Art Style: ${pixarStyleModifier}. Visual Anchors: ${characterAnchors || 'Pixar 3D storybook character'}. Camera Staging: ${lensStaging}. ${rawPrompt ? `Scene Details: ${rawPrompt}.` : ''} Render Specs: Masterpiece 3D Pixar animated film still, sharp focus, volumetric raytracing, clean rendering, zero text, zero watermark, zero speech bubbles.`;
+}
+
+interface StoryHistoryBufferData {
+  recentParagraphSubjects: string[];
+  keyPlotBeats: string[];
+  recentSentencePhrases: string[];
+  blockedClichés?: string[];
+}
+
+/**
+ * Story History Buffer Tracker:
+ * Extracts recent paragraph subjects and key plot beats to enforce zero repetition across sessions.
+ */
+function updateStoryHistoryBuffer(
+  existingBuffer: StoryHistoryBufferData | undefined,
+  newChapterContent: string,
+  chapterTitle: string
+): StoryHistoryBufferData {
+  const current: StoryHistoryBufferData = existingBuffer || {
+    recentParagraphSubjects: [],
+    keyPlotBeats: [],
+    recentSentencePhrases: [],
+    blockedClichés: ['As the sun rose', 'A shiver ran down', 'Suddenly without warning', 'Little did they know', 'Time seemed to stop'],
+  };
+
+  if (!newChapterContent) return current;
+
+  const paragraphs = newChapterContent.split(/\n\n+/).map(p => p.trim()).filter(p => p.length > 20);
+  const newSubjects = paragraphs.slice(0, 3).map(p => {
+    const firstSentence = p.split(/[.!?]/)[0] || p;
+    return firstSentence.trim().slice(0, 100);
+  });
+
+  const allSentences = newChapterContent.match(/[^.!?]+[.!?]+/g) || [];
+  const keyPhrases = allSentences.slice(0, 4).map(s => s.trim().slice(0, 75));
+
+  return {
+    recentParagraphSubjects: Array.from(new Set([...newSubjects, ...current.recentParagraphSubjects])).slice(0, 12),
+    keyPlotBeats: Array.from(new Set([chapterTitle, ...current.keyPlotBeats])).slice(0, 10),
+    recentSentencePhrases: Array.from(new Set([...keyPhrases, ...current.recentSentencePhrases])).slice(0, 15),
+    blockedClichés: current.blockedClichés,
+  };
+}
+
+/**
+ * Formats Story History Buffer into prompt instructions for LLMs
+ */
+function formatStoryHistoryBufferPrompt(buffer: StoryHistoryBufferData | undefined): string {
+  if (!buffer || (buffer.recentParagraphSubjects.length === 0 && buffer.keyPlotBeats.length === 0)) {
+    return `STORY HISTORY BUFFER (ACTIVE SESSION TRACKER):
+- Status: Opening Page (No previous paragraph subjects recorded yet). Establish initial setting and unique hook.`;
+  }
+
+  return `================================================================================
+STORY HISTORY BUFFER & MANDATORY ANTI-REPETITION CONSTRAINTS
+================================================================================
+RECENT PARAGRAPH SUBJECTS ALREADY COVERED IN THIS SESSION:
+${buffer.recentParagraphSubjects.map(s => `- "${s}"`).join('\n')}
+
+KEY PLOT BEATS ALREADY RESOLVED:
+${buffer.keyPlotBeats.map(b => `- ${b}`).join('\n')}
+
+FORBIDDEN PHRASING & RECENT SENTENCE PATTERNS:
+${buffer.recentSentencePhrases.map(p => `- "${p}"`).join('\n')}
+
+MANDATORY LLM COMPARISON STEP BEFORE OUTPUT:
+1. You MUST compare your newly generated narrative paragraphs against this Story History Buffer.
+2. IF any sentence, paragraph subject, or plot beat mirrors an item in the buffer, REJECT IT IMMEDIATELY and generate a completely distinct, divergent narrative beat.
+3. EXPLICITLY BLOCK identical sentence openings, repeated character motions (gasping, wiping brow, taking deep breaths, sighing), and redundant physical obstacles.
+4. Drive the story into UNEXPLORED territory with NEW mechanical, environmental, or emotional developments.`;
+}
+
 // Endpoint: Generate Context-Aware Non-Repetitive Story Chapter (Gemini + Groq Fallback + Procedural Fallback)
 app.post('/api/story/generate-chapter', async (req, res) => {
   try {
     const {
       genre = 'fantasy',
-      artStyle = 'watercolor_storybook',
+      artStyle = 'hyper_articulated_realism',
       tone = 'epic_heroic',
       cast = [],
       bookTitle = 'The Chronicle of Destiny',
@@ -857,8 +1079,10 @@ app.post('/api/story/generate-chapter', async (req, res) => {
       targetAudience = 'all_ages',
       moralLesson = '',
       isKidsMode = false,
+      historyBuffer,
     } = req.body;
 
+    const activeHistoryBuffer = historyBuffer || plotMemory?.historyBuffer;
     const isFinalChapter = chapterNumber >= totalTargetChapters;
     const isChildrenStory = isKidsMode || targetAudience === 'kids_early' || targetAudience === 'kids_middle' || targetAudience === 'young_reader';
 
@@ -889,7 +1113,11 @@ ${moralLesson ? `- Core Moral Value to naturally weave into this chapter: "${mor
 `;
     }
 
+    const historyBufferPromptSection = formatStoryHistoryBufferPrompt(activeHistoryBuffer);
+
     const systemInstruction = `${MASTER_STORY_SYSTEM_PROMPT}
+
+${historyBufferPromptSection}
 
 CRITICAL ANTI-REPETITION MANDATES:
 1. NEVER use generic clichés ("Little did they know", "A shiver ran down their spine", "Suddenly without warning", "Time seemed to stop").
@@ -920,12 +1148,7 @@ Provide:
 1. Chapter title (evocative and unique)
 2. Chapter summary (1-2 sentences)
 3. Chapter prose content (complete unique narrative prose for this page)
-4. illustrationPrompt formatted strictly as:
-   Art Style: [${artStyle}]
-   Scene Details: [Action, body language, facial expression]
-   Visual Anchors: [Exact visual specs of custom character(s)]
-   Environment & Lighting: [Setting details, light source, color scheme]
-   Camera Framing: [Angle, shot type, focal perspective]
+4. illustrationPrompt (MUST adhere to Page Context Injection protocol with specific page action and Pixar 3D styling)
 5. ${isFinalChapter ? '1-2 concluding reflections' : '2-3 diverse, branching choices for the reader'}
 6. Memory updates to ensure non-repetition in future chapters.`;
 
@@ -979,7 +1202,27 @@ Provide:
       }, 'gemini-2.5-flash');
 
       const parsed = extractJSON(response.text || '{}');
-      return res.json({ success: true, chapter: parsed, provider: 'gemini' });
+
+      // Update Story History Buffer
+      const updatedHistoryBuffer = updateStoryHistoryBuffer(activeHistoryBuffer, parsed.content || '', parsed.title || '');
+
+      // Apply Page Context Injection to illustration prompt
+      const contextInjectedPrompt = injectPageContext({
+        pageText: parsed.content,
+        artStyle,
+        rawPrompt: parsed.illustrationPrompt,
+        characterAnchors: cast.map((c: any) => `${c.name}: ${c.visualProfile?.artisticStylePrompt || c.appearanceTags?.join(', ')}`).join('; '),
+        chapterNumber,
+      });
+
+      parsed.illustrationPrompt = contextInjectedPrompt;
+
+      return res.json({
+        success: true,
+        chapter: parsed,
+        historyBuffer: updatedHistoryBuffer,
+        provider: 'gemini',
+      });
     } catch (geminiError: any) {
       console.warn('Gemini story generation failed, attempting Groq fallback:', geminiError?.message);
 
@@ -992,13 +1235,22 @@ Provide:
           ], true);
 
           const parsed = extractJSON(groqText);
-          return res.json({ success: true, chapter: parsed, provider: 'groq-fallback' });
+          const updatedHistoryBuffer = updateStoryHistoryBuffer(activeHistoryBuffer, parsed.content || '', parsed.title || '');
+          parsed.illustrationPrompt = injectPageContext({
+            pageText: parsed.content,
+            artStyle,
+            rawPrompt: parsed.illustrationPrompt,
+            characterAnchors: cast.map((c: any) => `${c.name}: ${c.visualProfile?.artisticStylePrompt || c.appearanceTags?.join(', ')}`).join('; '),
+            chapterNumber,
+          });
+
+          return res.json({ success: true, chapter: parsed, historyBuffer: updatedHistoryBuffer, provider: 'groq-fallback' });
         } catch (groqErr) {
           console.warn('Groq story generation fallback also failed:', groqErr);
         }
       }
 
-      // Procedural story generation fallback (ensures flawless user experience even if remote LLM is down/unreachable)
+      // Procedural story generation fallback
       const proceduralChapter = generateProceduralChapter({
         bookTitle,
         synopsis,
@@ -1011,7 +1263,16 @@ Provide:
         chosenChoiceAction,
       });
 
-      return res.json({ success: true, chapter: proceduralChapter, provider: 'procedural-narrator' });
+      const updatedHistoryBuffer = updateStoryHistoryBuffer(activeHistoryBuffer, proceduralChapter.content, proceduralChapter.title);
+      proceduralChapter.illustrationPrompt = injectPageContext({
+        pageText: proceduralChapter.content,
+        artStyle,
+        rawPrompt: proceduralChapter.illustrationPrompt,
+        characterAnchors: cast.map((c: any) => `${c.name}: ${c.appearanceTags?.join(', ')}`).join('; '),
+        chapterNumber,
+      });
+
+      return res.json({ success: true, chapter: proceduralChapter, historyBuffer: updatedHistoryBuffer, provider: 'procedural-narrator' });
     }
   } catch (error: any) {
     console.error('Error in /api/story/generate-chapter:', error);
@@ -1133,7 +1394,29 @@ Generate an array of ${pageCount} chapters representing the complete 5-stage sto
         : [];
 
       if (chapters.length > 0) {
-        return res.json({ success: true, chapters, provider: 'gemini' });
+        const uniqueChapters = ensureUniqueChapterContents(chapters, {
+          bookTitle,
+          synopsis,
+          genre,
+          tone,
+          artStyle,
+          cast,
+          targetAudience,
+        });
+
+        // Apply Page Context Injection across all generated pages
+        const contextInjectedChapters = uniqueChapters.map((ch: any, idx: number) => {
+          const injectedPrompt = injectPageContext({
+            pageText: ch.content,
+            artStyle,
+            rawPrompt: ch.illustrationPrompt,
+            characterAnchors: cast.map((c: any) => `${c.name}: ${c.visualProfile?.artisticStylePrompt || c.appearanceTags?.join(', ')}`).join('; '),
+            chapterNumber: idx + 1,
+          });
+          return { ...ch, illustrationPrompt: injectedPrompt };
+        });
+
+        return res.json({ success: true, chapters: contextInjectedChapters, provider: 'gemini' });
       }
     } catch (llmErr) {
       console.warn('Full book LLM generation note, synthesizing non-repetitive procedural chapters:', llmErr);
@@ -1155,7 +1438,28 @@ Generate an array of ${pageCount} chapters representing the complete 5-stage sto
       });
     });
 
-    return res.json({ success: true, chapters: proceduralChapters, provider: 'procedural-full-book' });
+    const uniqueProcedural = ensureUniqueChapterContents(proceduralChapters, {
+      bookTitle,
+      synopsis,
+      genre,
+      tone,
+      artStyle,
+      cast,
+      targetAudience,
+    });
+
+    const contextInjectedProcedural = uniqueProcedural.map((ch: any, idx: number) => {
+      const injectedPrompt = injectPageContext({
+        pageText: ch.content,
+        artStyle,
+        rawPrompt: ch.illustrationPrompt,
+        characterAnchors: cast.map((c: any) => `${c.name}: ${c.appearanceTags?.join(', ')}`).join('; '),
+        chapterNumber: idx + 1,
+      });
+      return { ...ch, illustrationPrompt: injectedPrompt };
+    });
+
+    return res.json({ success: true, chapters: contextInjectedProcedural, provider: 'procedural-full-book' });
   } catch (error: any) {
     console.error('Error in /api/story/generate-full-book:', error);
     return res.status(500).json({ error: error.message || 'Failed to generate full book' });
@@ -1390,16 +1694,32 @@ Synopsis & History: ${synopsis} ${chaptersSummary}`;
 // Endpoint: Generate Context-Aware Scene Illustration (Multi-tier: Cloudflare Workers AI -> Hugging Face -> Nanobanana -> Gemini -> Pollinations AI)
 app.post('/api/story/generate-illustration', async (req, res) => {
   try {
-    const { prompt, artStyle = 'watercolor_storybook', aspectRatio = '16:9' } = req.body;
+    const {
+      prompt,
+      storyText = '',
+      artStyle = 'hyper_articulated_realism',
+      aspectRatio = '16:9',
+      characterAnchors = '',
+      chapterNumber = 1,
+    } = req.body;
 
-    if (!prompt) {
-      return res.status(400).json({ error: 'Prompt is required' });
+    if (!prompt && !storyText) {
+      return res.status(400).json({ error: 'Prompt or storyText is required' });
     }
+
+    // Apply mandatory Page Context Injection
+    const finalPrompt = injectPageContext({
+      pageText: storyText,
+      artStyle,
+      rawPrompt: prompt,
+      characterAnchors,
+      chapterNumber,
+    });
 
     const width = aspectRatio === '1:1' ? 800 : aspectRatio === '9:16' ? 576 : 1024;
     const height = aspectRatio === '1:1' ? 800 : aspectRatio === '9:16' ? 1024 : 576;
 
-    const result = await generateImageMultiTier(prompt, {
+    const result = await generateImageMultiTier(finalPrompt, {
       width,
       height,
       aspectRatio,
@@ -1412,6 +1732,7 @@ app.post('/api/story/generate-illustration', async (req, res) => {
       imageUrl: result.imageUrl,
       provider: result.provider,
       note: result.note,
+      injectedPrompt: finalPrompt,
     });
   } catch (error: any) {
     console.error('Error in /api/story/generate-illustration:', error);

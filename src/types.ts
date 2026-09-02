@@ -73,34 +73,29 @@ export interface Character {
 export type TargetAudience = 'kids_preschool' | 'kids_early' | 'kids_middle' | 'young_reader' | 'all_ages' | 'general_ya';
 
 export type StoryGenre =
-  | 'fantasy'
-  | 'cyberpunk'
-  | 'cozy_mystery'
-  | 'cosmic_horror'
-  | 'steampunk'
-  | 'noir'
   | 'solarpunk'
-  | 'fairytale'
-  | 'post_apocalyptic'
-  | 'gothic_romance'
-  | 'space_opera'
-  | 'mythological'
-  | 'magical_animals'
-  | 'bedtime_lullaby'
-  | 'kid_detective'
-  | 'enchanted_forest';
+  | 'silkpunk'
+  | 'gaslamp_fantasy'
+  | 'arcanepunk_clockwork'
+  | 'biopunk_ecofiction'
+  | 'cozy_culinary_mystery'
+  | 'maritime_adventure'
+  | 'folklore_noir'
+  | 'micro_scale_fiction'
+  | 'slice_of_life_twist'
+  | 'historical_retro_futurism'
+  | 'space_western_frontier'
+  | 'random_subgenre_mashup'
+  | (string & {});
 
 export type StoryArtStyle =
-  | 'watercolor_storybook'
-  | 'kids_3d_cartoon'
-  | 'cozy_picturebook'
-  | 'crayon_papercraft'
-  | 'gothic_oil'
-  | 'cyber_concept'
-  | 'vintage_ink'
-  | 'studio_anime'
-  | 'cinematic_realism'
-  | 'dreamy_pastel';
+  | 'hyper_articulated_realism'
+  | 'chunky_claymation'
+  | 'bean_mouth_cartoon'
+  | 'abstract_surrealism'
+  | 'stylized_photorealism'
+  | 'anime_2d_3d_hybrid'
+  | (string & {});
 
 export type StoryTone =
   | 'whimsical'
@@ -122,12 +117,20 @@ export interface StoryChoice {
   riskLevel: 'safe' | 'balanced' | 'perilous' | 'unpredictable';
 }
 
+export interface StoryHistoryBuffer {
+  recentParagraphSubjects: string[];
+  keyPlotBeats: string[];
+  recentSentencePhrases: string[];
+  blockedClichés?: string[];
+}
+
 export interface PlotMemory {
   keyDecisions: string[];
   activeInventory: string[];
   characterTensions: string[];
   foreshadowedClues: string[];
   worldStateChanges: string[];
+  historyBuffer?: StoryHistoryBuffer;
 }
 
 export interface MarginNote {
@@ -197,6 +200,8 @@ export interface GenreDefinition {
   defaultTone: StoryTone;
   samplePromptSeed: string;
   isKidsFriendly?: boolean;
+  weight?: number;
+  compatibleGenreIds?: string[];
 }
 
 export interface ArtStyleDefinition {

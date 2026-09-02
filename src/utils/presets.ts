@@ -1,145 +1,179 @@
 import { GenreDefinition, ArtStyleDefinition, Character, StoryBook } from '../types';
 
 export const GENRE_PRESETS: GenreDefinition[] = [
-  {
-    id: 'cyberpunk',
-    name: 'Neon Cyberpunk',
-    tagline: 'High-tech rain, low-life alleys, and sentient chrome.',
-    description: 'Dystopian megacities illuminated by holographic billboards, rogue neural implants, and corporate conspiracies.',
-    iconName: 'Cpu',
-    themeColor: 'from-cyan-500 to-fuchsia-500',
-    defaultTone: 'gritty_noir',
-    samplePromptSeed: 'A data smuggler discovers an encrypted soul trapped inside a black-market memory shard.',
-  },
-  {
-    id: 'fantasy',
-    name: 'High Fantasy & Myth',
-    tagline: 'Ancient covenants, starlight sorcery, and forgotten realms.',
-    description: 'Towering spires, primeval forests whispered into being, and relics that alter the fabric of destiny.',
-    iconName: 'Sparkles',
-    themeColor: 'from-amber-400 to-emerald-500',
-    defaultTone: 'epic_heroic',
-    samplePromptSeed: 'The last celestial archivist must protect an unwritten constellation from being erased by the Eclipse Guild.',
-  },
-  {
-    id: 'cozy_mystery',
-    name: 'Cozy Arcane Mystery',
-    tagline: 'Herbal tea, rain on cobblestones, and perplexing clues.',
-    description: 'Charming bookshops, eccentric townsfolk, magical familiars, and enigmatic crimes solved with clever deduction.',
-    iconName: 'Search',
-    themeColor: 'from-amber-600 to-orange-400',
-    defaultTone: 'whimsical',
-    samplePromptSeed: 'An antique clock in a quiet seaside bakery strikes thirteen, and a customer disappears without leaving footprints.',
-  },
-  {
-    id: 'cosmic_horror',
-    name: 'Cosmic & Eldritch Mystery',
-    tagline: 'Forbidden geometries, whispered secrets, and abyssal tides.',
-    description: 'Scholars uncovering unnamable truths at the edge of comprehension, coastal fog, and eldritch relics.',
-    iconName: 'Eye',
-    themeColor: 'from-purple-900 to-emerald-900',
-    defaultTone: 'psychological_suspense',
-    samplePromptSeed: 'A deep-sea oceanographer translates a rhythm vibrating through submarine titanium cables.',
-  },
-  {
-    id: 'steampunk',
-    name: 'Steampunk Aeronautics',
-    tagline: 'Brass gears, cloud-dock leviathans, and clockwork alchemy.',
-    description: 'Soaring airships above chimney-crested skylines, pressure-powered prosthetics, and daring sky explorers.',
-    iconName: 'Compass',
-    themeColor: 'from-amber-700 to-yellow-600',
-    defaultTone: 'epic_heroic',
-    samplePromptSeed: 'A rogue aeronaut engineer finds a perpetual-motion core inside a grounded sky pirate flagship.',
-  },
-  {
-    id: 'noir',
-    name: 'Shadow Noir Detective',
-    tagline: 'Venetian blinds, wet asphalt, and cigarette-smoke monologues.',
-    description: 'Morally gray private eyes, smoky jazz parlors, rain-slicked boulevards, and cases where everyone has a motive.',
-    iconName: 'Glasses',
-    themeColor: 'from-zinc-700 to-stone-900',
-    defaultTone: 'gritty_noir',
-    samplePromptSeed: 'A private detective receives a retainer envelope containing a photograph of himself entering a murder scene he never visited.',
-  },
+  // --- Speculative & Worldbuilding-Heavy Genres ---
   {
     id: 'solarpunk',
-    name: 'Solarpunk Renaissance',
-    tagline: 'Living architecture, symbiotic tech, and golden dawn.',
-    description: 'Bioluminescent canopies, community glasshouses, clean energy harmony, and journeys of rediscovery.',
+    name: 'Solarpunk',
+    tagline: 'Glass sails, vertical gardens, and tech in harmony with nature.',
+    description: 'Optimistic, green sci-fi where human technology exists in harmony with nature. Visually features glass, solar sails, vertical gardens, and community-driven problems rather than epic battles.',
     iconName: 'Sun',
     themeColor: 'from-emerald-400 to-teal-500',
     defaultTone: 'heartwarming',
-    samplePromptSeed: 'A botanical terraformer unearths a dormant seed vault beneath the roots of an ancient skyscraper.',
+    samplePromptSeed: 'A chef running a zero-waste hydroponic greenhouse on an airship solves the mystery of a missing rare seed species.',
+    isKidsFriendly: true,
+    weight: 1.5,
+    compatibleGenreIds: ['cozy_culinary_mystery', 'biopunk_ecofiction', 'micro_scale_fiction', 'slice_of_life_twist', 'historical_retro_futurism', 'space_western_frontier', 'maritime_adventure'],
   },
   {
-    id: 'fairytale',
-    name: 'Dark & Whimsical Fairytale',
-    tagline: 'Fae bargains, bramble towers, and enchanted mirrors.',
-    description: 'Old-world folklore, trickster foxes, cursed glass slippers, and bittersweet bargains under the harvest moon.',
-    iconName: 'Moon',
-    themeColor: 'from-rose-400 to-purple-600',
-    defaultTone: 'poetic_lyrical',
-    samplePromptSeed: 'A clockmaker trades their own shadow for seven days of flawless craftsmanship, only to see the shadow start its own life.',
-  },
-  {
-    id: 'space_opera',
-    name: 'Grand Space Opera',
-    tagline: 'Dyson spheres, interstellar empires, and quantum pilots.',
-    description: 'Nebula dogfights, ancient alien gates, planetary courts, and the crew of an independent warp cruiser.',
-    iconName: 'Rocket',
-    themeColor: 'from-indigo-600 to-blue-400',
+    id: 'silkpunk',
+    name: 'Silkpunk',
+    tagline: 'Bamboo airships, silk sails, and organic East Asian technology.',
+    description: 'A subgenre blending technology and organic materials inspired by East Asian antiquity—think airships built from bamboo and silk, powered by internal pressure or wind dynamics.',
+    iconName: 'Feather',
+    themeColor: 'from-amber-500 to-rose-400',
     defaultTone: 'epic_heroic',
-    samplePromptSeed: 'A salvage crew boards a ghost dreadnought drifting between galaxies and triggers its sentient hyperspace navigation core.',
+    samplePromptSeed: 'A tiny clockwork beetle pilot navigating a towering ancient bamboo forest to deliver a critical message.',
+    isKidsFriendly: true,
+    weight: 1.3,
+    compatibleGenreIds: ['maritime_adventure', 'micro_scale_fiction', 'folklore_noir', 'arcanepunk_clockwork', 'slice_of_life_twist'],
   },
   {
-    id: 'gothic_romance',
-    name: 'Gothic Manor Romance',
-    tagline: 'Crumbling gargoyles, candlelit halls, and secret lineages.',
-    description: 'Windswept moors, locked observatory towers, brooding lords, and dangerous love woven with historical secrets.',
+    id: 'gaslamp_fantasy',
+    name: 'Gaslamp Fantasy',
+    tagline: 'Cobblestone secrets, Victorian lanterns, and soft alchemy.',
+    description: 'High-society gothic mystery set in Victorian or Edwardian eras with low-level alchemy or soft magic. Emphasizes atmospheric tension, cobblestones, lanterns, and secrets.',
     iconName: 'Flame',
-    themeColor: 'from-rose-900 to-slate-900',
-    defaultTone: 'poetic_lyrical',
-    samplePromptSeed: 'An archivist hired to catalogue Blackthorn Manor finds letters addressed to them in handwriting matching their own.',
+    themeColor: 'from-amber-700 to-stone-800',
+    defaultTone: 'psychological_suspense',
+    samplePromptSeed: 'An archivist on a steam-powered research vessel tracking rare deep-sea luminous tide phenomena.',
+    isKidsFriendly: true,
+    weight: 1.2,
+    compatibleGenreIds: ['maritime_adventure', 'cozy_culinary_mystery', 'folklore_noir', 'arcanepunk_clockwork', 'historical_retro_futurism'],
   },
   {
-    id: 'magical_animals',
-    name: 'Magical Animal Friends',
-    tagline: 'Talking foxes, wise barn owls, and cozy woodland dens.',
-    description: 'Charming forest adventures where woodland creatures solve gentle problems and discover magical secrets.',
+    id: 'arcanepunk_clockwork',
+    name: 'Arcanepunk / Clockwork Fantasy',
+    tagline: 'Industrial gearwork, magical runes, and steam engineering.',
+    description: 'Worlds where magic acts as an industrial power source (gears, runes, steam engines). Conflict centers around mechanical engineering, discovery, and societal balance.',
+    iconName: 'Cpu',
+    themeColor: 'from-orange-500 to-amber-600',
+    defaultTone: 'curious_educational',
+    samplePromptSeed: 'A clockwork apprentice restores a dry river siphon using an ancient brass gear mechanism.',
+    isKidsFriendly: true,
+    weight: 1.4,
+    compatibleGenreIds: ['solarpunk', 'silkpunk', 'gaslamp_fantasy', 'biopunk_ecofiction', 'historical_retro_futurism', 'space_western_frontier'],
+  },
+  {
+    id: 'biopunk_ecofiction',
+    name: 'Biopunk / Eco-Fiction',
+    tagline: 'Living architecture, synthetic ecosystems, and biological tech.',
+    description: 'Focuses on biological technology—living architecture, synthetic organisms, or characters who solve problems by understanding animal ecosystems rather than using magic.',
     iconName: 'Sparkles',
-    themeColor: 'from-amber-400 to-emerald-400',
-    defaultTone: 'whimsical',
-    samplePromptSeed: 'A little red squirrel discovers a miniature golden violin hidden inside a hollow chestnut tree.',
+    themeColor: 'from-emerald-600 to-lime-500',
+    defaultTone: 'curious_educational',
+    samplePromptSeed: 'A young botanist communicates with bioluminescent coral trees to heal a blighted coastal estuary.',
+    isKidsFriendly: true,
+    weight: 1.2,
+    compatibleGenreIds: ['solarpunk', 'arcanepunk_clockwork', 'micro_scale_fiction', 'cozy_culinary_mystery'],
   },
+
+  // --- Atmospheric & Mystery Genres ---
   {
-    id: 'bedtime_lullaby',
-    name: 'Cozy Bedtime Adventures',
-    tagline: 'Starlit clouds, sleepy boats, and sweet goodnights.',
-    description: 'Gentle, soothing night-time journeys designed to inspire wonder, calm busy minds, and guide into peaceful sleep.',
-    iconName: 'Moon',
-    themeColor: 'from-indigo-400 to-purple-400',
-    defaultTone: 'gentle_bedtime',
-    samplePromptSeed: 'A sleepy baby moonbeam helps a lost cloudling find its way home across the velvet night sky.',
-  },
-  {
-    id: 'kid_detective',
-    name: 'Junior Secret Investigators',
-    tagline: 'Magnifying glasses, treehouse clubhouses, and neighborhood clues.',
-    description: 'Clever mysteries solved through kindness, curiosity, and teamwork with friendly friends and pets.',
+    id: 'cozy_culinary_mystery',
+    name: 'Cozy Whodunit / Culinary Mystery',
+    tagline: 'Small communities, hidden clues, and mouthwatering craft.',
+    description: 'Low-stakes, highly tactical mysteries focused on small communities, hidden clues, eccentric characters, and sensory details (food, crafts, restoration work).',
     iconName: 'Search',
-    themeColor: 'from-sky-400 to-amber-400',
-    defaultTone: 'playful_funny',
-    samplePromptSeed: 'The mysterious case of the missing blueberry pie from Mrs. Maple’s windowsill on Elm Street.',
+    themeColor: 'from-amber-500 to-orange-400',
+    defaultTone: 'whimsical',
+    samplePromptSeed: 'A village baker uses sensory clues and spice aromas to uncover who rearranged the secret recipe ledger.',
+    isKidsFriendly: true,
+    weight: 1.5,
+    compatibleGenreIds: ['solarpunk', 'gaslamp_fantasy', 'micro_scale_fiction', 'slice_of_life_twist', 'biopunk_ecofiction'],
   },
   {
-    id: 'enchanted_forest',
-    name: 'Enchanted Kingdom for Kids',
-    tagline: 'Friendly dragons, bouncing pixies, and rainbow bridges.',
-    description: 'Magical kingdoms where bravery is kind, giants love gardening, and everyone is invited to the castle feast.',
-    iconName: 'Sun',
+    id: 'maritime_adventure',
+    name: 'Maritime / High Seas Adventure',
+    tagline: 'Navigational logic, weather survival, and uncharted coastal folklore.',
+    description: 'Navigational logic, weather survival, ancient uncharted maps, and coastal folklore. Perfect for forcing dynamic action rather than static conversations.',
+    iconName: 'Compass',
+    themeColor: 'from-cyan-600 to-blue-700',
+    defaultTone: 'epic_heroic',
+    samplePromptSeed: 'A young navigator uses stellar angles and tidal currents to guide a storm-tossed research lugger around hidden reefs.',
+    isKidsFriendly: true,
+    weight: 1.3,
+    compatibleGenreIds: ['solarpunk', 'silkpunk', 'gaslamp_fantasy', 'space_western_frontier', 'folklore_noir'],
+  },
+  {
+    id: 'folklore_noir',
+    name: 'Mythological Reimagining (Folklore Noir)',
+    tagline: 'Global myths retold through a detective or slice-of-life lens.',
+    description: 'Classic folklore or regional mythologies retold through a detective or slice-of-life lens. Moves away from Western European medieval tropes toward global traditions.',
+    iconName: 'Moon',
+    themeColor: 'from-indigo-900 to-purple-800',
+    defaultTone: 'poetic_lyrical',
+    samplePromptSeed: 'A detective who speaks to river spirits investigates why the moonlit tides left golden riddle stones on the shore.',
+    isKidsFriendly: true,
+    weight: 1.1,
+    compatibleGenreIds: ['silkpunk', 'gaslamp_fantasy', 'maritime_adventure', 'historical_retro_futurism', 'slice_of_life_twist'],
+  },
+  {
+    id: 'micro_scale_fiction',
+    name: 'Micro-Scale Fiction',
+    tagline: 'Tiny creatures navigating human spaces as vast epic landscapes.',
+    description: 'Stories told from the perspective of tiny creatures (insects, toys, garden life) navigating human environments as vast, epic landscapes.',
+    iconName: 'Smile',
+    themeColor: 'from-emerald-400 to-yellow-500',
+    defaultTone: 'playful_funny',
+    samplePromptSeed: 'A miniature clockwork beetle pilot crosses a carpet forest to deliver a leaf-encoded cipher.',
+    isKidsFriendly: true,
+    weight: 1.4,
+    compatibleGenreIds: ['solarpunk', 'silkpunk', 'cozy_culinary_mystery', 'biopunk_ecofiction', 'slice_of_life_twist'],
+  },
+
+  // --- Character-Driven & Everyday Genres ---
+  {
+    id: 'slice_of_life_twist',
+    name: 'Slice-of-Life with a Twist',
+    tagline: 'Realistic family dynamics touch a subtle, unexplainable magic.',
+    description: 'Grounded, realistic family or school dynamics where one subtle, unexplainable element exists (e.g., a library where forgotten memories end up in physical jars).',
+    iconName: 'Heart',
     themeColor: 'from-rose-400 to-amber-300',
     defaultTone: 'heartwarming',
-    samplePromptSeed: 'A tiny dragon who can only breathe bubbles of rainbow light helps light up the village festival.',
+    samplePromptSeed: 'A neighborhood library maintains a hidden aisle where lost childhood memories are stored in glass jars.',
+    isKidsFriendly: true,
+    weight: 1.3,
+    compatibleGenreIds: ['solarpunk', 'cozy_culinary_mystery', 'micro_scale_fiction', 'folklore_noir', 'historical_retro_futurism'],
+  },
+  {
+    id: 'historical_retro_futurism',
+    name: 'Historical Invention / Retro-Futurism',
+    tagline: '1800s aviation races, radio pioneers, and alternate history.',
+    description: 'Alternate timeline history—for instance, an 1800s aviation race or early radio-broadcasting pioneers solving an unusual mystery.',
+    iconName: 'Compass',
+    themeColor: 'from-yellow-600 to-amber-700',
+    defaultTone: 'curious_educational',
+    samplePromptSeed: 'An 1890s radio operator picks up an unscheduled telegraph signal sent from a floating cloud observatory.',
+    isKidsFriendly: true,
+    weight: 1.2,
+    compatibleGenreIds: ['gaslamp_fantasy', 'arcanepunk_clockwork', 'folklore_noir', 'solarpunk'],
+  },
+  {
+    id: 'space_western_frontier',
+    name: 'Space Western / Orbital Frontier',
+    tagline: 'Asteroid miners, cargo drivers, and orbital survival engineering.',
+    description: 'Outer-space survival framed around frontier themes—maintenance crews, asteroid miners, or space cargo drivers dealing with practical engineering dilemmas.',
+    iconName: 'Rocket',
+    themeColor: 'from-indigo-600 to-slate-800',
+    defaultTone: 'epic_heroic',
+    samplePromptSeed: 'A space tug mechanic repairs a solar sail array while navigating through a dense field of ice particles.',
+    isKidsFriendly: true,
+    weight: 1.3,
+    compatibleGenreIds: ['solarpunk', 'arcanepunk_clockwork', 'maritime_adventure', 'slice_of_life_twist'],
+  },
+
+  // --- Random Subgenre Mashup ---
+  {
+    id: 'random_subgenre_mashup',
+    name: '🎲 Surprise Me! (Random Subgenre Mashup)',
+    tagline: 'Sparks a weighted random blend of two compatible subgenres!',
+    description: 'Uses a weighted randomizer to pick a primary genre and pairs it with a second compatible subgenre to create an unrepeatable story context.',
+    iconName: 'Sparkles',
+    themeColor: 'from-fuchsia-500 to-cyan-500',
+    defaultTone: 'whimsical',
+    samplePromptSeed: 'A zero-waste airship greenhouse chef and a tiny clockwork pilot team up to solve a maritime weather riddle.',
+    isKidsFriendly: true,
   },
 ];
 
@@ -155,74 +189,46 @@ export const KIDS_MORAL_THEMES = [
 
 export const ART_STYLES: ArtStyleDefinition[] = [
   {
-    id: 'kids_3d_cartoon',
-    name: 'Vibrant 3D Animated Feature',
-    description: 'Playful Disney/Pixar style vibrant lighting, expressive characters, smooth textures, joyful and cinematic.',
+    id: 'hyper_articulated_realism',
+    name: 'Classic Hyper-Articulated Realism',
+    description: 'Physically-Based Rendering (PBR), micro-texture detail, subsurface scattering, cinematic volumetric lighting, hyper-detailed Pixar 3D.',
     sampleThumbnail: 'https://images.unsplash.com/photo-1534447677768-be436bb09401?w=300&q=80',
-    promptModifier: 'vibrant 3D animated movie style, Pixar Disney aesthetic, cheerful expressive character, soft subsurface scattering, warm volumetric studio lighting, rich colors, 8k render, masterpiece children animation art',
+    promptModifier: 'Physically-Based Rendering (PBR), micro-texture detail, subsurface scattering, cinematic volumetric lighting, hyper-detailed Pixar 3D',
   },
   {
-    id: 'cozy_picturebook',
-    name: 'Cozy Classic Picture Book',
-    description: 'Warm pencil and gouache illustration with gentle woodland charm, Beatrix Potter & Winnie the Pooh aura.',
-    sampleThumbnail: 'https://images.unsplash.com/photo-1579783900882-c0d3dad7b119?w=300&q=80',
-    promptModifier: 'charming classic children book illustration, soft gouache and pencil textures, warm pastel colors, vintage woodland picturebook aesthetic, Beatrix Potter style, heartfelt and wholesome',
-  },
-  {
-    id: 'crayon_papercraft',
-    name: 'Playful Crayon & Papercraft',
-    description: 'Layered cutout paper craft, vibrant wax crayon accents, handmade texture, pure childhood imagination.',
+    id: 'chunky_claymation',
+    name: 'Chunky Claymation / Handcrafted',
+    description: 'Tactile claymation aesthetic, soft clay surfaces, rounded geometric shapes, stop-motion feel, handcrafted 3D render.',
     sampleThumbnail: 'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?w=300&q=80',
-    promptModifier: 'playful papercraft layered collage illustration with wax crayon details, handmade textured felt and cardboard depth, colorful, whimsical, award winning preschool storybook art',
+    promptModifier: 'Tactile claymation aesthetic, soft clay surfaces, rounded geometric shapes, stop-motion feel, handcrafted 3D render',
   },
   {
-    id: 'watercolor_storybook',
-    name: 'Luminous Storybook Watercolor',
-    description: 'Delicate wet-on-wet watercolor washes, gold leaf highlights, soft deckled edges, nostalgic children’s classic aura.',
+    id: 'bean_mouth_cartoon',
+    name: '"Bean Mouth" / Modern Stylized Cartoon',
+    description: 'Bean-mouth character design, expressive exaggerated eyes, flushed cheeks, soft pastel color palette, modern Pixar stylized animation.',
     sampleThumbnail: 'https://images.unsplash.com/photo-1579783900882-c0d3dad7b119?w=300&q=80',
-    promptModifier: 'enchanting children book illustration, delicate watercolor wash with gold leaf flecks, dreamy atmospheric lighting, textured paper grain, highly artistic, award winning storybook art',
+    promptModifier: 'Bean-mouth character design, expressive exaggerated eyes, flushed cheeks, soft pastel color palette, modern Pixar stylized animation',
   },
   {
-    id: 'gothic_oil',
-    name: 'Gothic Dark Oil Painting',
-    description: 'Rich impasto textures, dramatic chiaroscuro Rembrandt lighting, deep crimson & umber tones, painterly classical depth.',
+    id: 'abstract_surrealism',
+    name: 'Abstract / Painterly Surrealism',
+    description: 'Ethereal translucent shaders, glowing particle volumetric light, abstract 3D shapes, painterly gradient background, surreal Pixar concept art style.',
     sampleThumbnail: 'https://images.unsplash.com/photo-1579783902614-a3fb3927b675?w=300&q=80',
-    promptModifier: 'classical dramatic oil painting on canvas, heavy impasto texture, dark baroque chiaroscuro lighting, deep jewel tones, romantic atmospheric masterpiece',
+    promptModifier: 'Ethereal translucent shaders, glowing particle volumetric light, abstract 3D shapes, painterly gradient background, surreal Pixar concept art style',
   },
   {
-    id: 'cyber_concept',
-    name: 'Neo-Cyber Concept Art',
-    description: 'High-contrast neon reflections, volumetric haze, cinematic lens flare, intricate mechanical detail.',
-    sampleThumbnail: 'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?w=300&q=80',
-    promptModifier: 'futuristic cinematic concept art, neon rim lighting, volumetric cyan and magenta haze, octane render 8k, matte painting, hyper-detailed cyberpunk aesthetic',
-  },
-  {
-    id: 'vintage_ink',
-    name: 'Vintage Woodblock & Quill',
-    description: 'Intricate crosshatching, sepia parchment tones, woodcut engraving styling, ancient grimoire feel.',
-    sampleThumbnail: 'https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?w=300&q=80',
-    promptModifier: 'vintage 19th-century woodcut engraving, intricate crosshatching linework, aged parchment sepia palette, Gustave Doré inspired, masterwork ink illustration',
-  },
-  {
-    id: 'studio_anime',
-    name: 'Studio Anime Aesthetic',
-    description: 'Hand-painted scenic backgrounds, lush cel-shading, emotional character expressions, luminous natural light.',
-    sampleThumbnail: 'https://images.unsplash.com/photo-1534447677768-be436bb09401?w=300&q=80',
-    promptModifier: 'cinematic anime scenic illustration, Studio Ghibli inspired painterly background, warm golden hour illumination, vibrant cel shaded character art, masterpiece',
-  },
-  {
-    id: 'cinematic_realism',
-    name: 'Vivid Cinematic Stills',
-    description: '35mm anamorphic film grain, dramatic shallow depth of field, naturalistic lighting, photorealistic textures.',
+    id: 'stylized_photorealism',
+    name: 'Stylized Photorealism (Environment Focus)',
+    description: 'Photorealistic 3D environment, shallow depth of field, cinematic camera lens blur, PBR lighting, stylized character in realistic setting.',
     sampleThumbnail: 'https://images.unsplash.com/photo-1509198397868-475647b2a1e5?w=300&q=80',
-    promptModifier: '35mm anamorphic cinematic film still, moody cinematic lighting, shallow depth of field, authentic film grain, photorealistic emotional portrait, 8k resolution',
+    promptModifier: 'Photorealistic 3D environment, shallow depth of field, cinematic camera lens blur, PBR lighting, stylized character in realistic setting',
   },
   {
-    id: 'dreamy_pastel',
-    name: 'Dreamy Ethereal Pastel',
-    description: 'Soft gradient colors, glowing mist, gentle starry aura, whimsical fantasy mood.',
-    sampleThumbnail: 'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?w=300&q=80',
-    promptModifier: 'ethereal pastel illustration, soft glowing luminescence, iridescent colors, dreamy floating particles, magical fantasy storybook art',
+    id: 'anime_2d_3d_hybrid',
+    name: 'Anime-Inspired 2D/3D Hybrid',
+    description: '3D anime hybrid style, exaggerated expressive poses, 2D impact lines in 3D, vivid neon lighting, snappy stylized 3D animation.',
+    sampleThumbnail: 'https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?w=300&q=80',
+    promptModifier: '3D anime hybrid style, exaggerated expressive poses, 2D impact lines in 3D, vivid neon lighting, snappy stylized 3D animation',
   },
 ];
 
@@ -240,7 +246,7 @@ export const INITIAL_PRESET_CHARACTERS: Character[] = [
     flawOrSecret: 'Sometimes gets so excited she forgets to finish her crafts before starting new ones.',
     signatureItem: 'Handmade origami rainbow bird',
     speechPattern: 'Bubbly, energetic, with joyful giggles and playful expressions',
-    genreAffinities: ['magical_animals', 'kid_detective', 'enchanted_forest'],
+    genreAffinities: ['solarpunk', 'cozy_culinary_mystery', 'micro_scale_fiction'],
     visualProfile: {
       photoUrl: '/presets/preset_maya.jpg',
       appearanceTags: ['Braided buns', 'Dark brown skin', 'Navy ruffled dress', 'Playful expression', 'Sandals'],
@@ -262,7 +268,7 @@ export const INITIAL_PRESET_CHARACTERS: Character[] = [
     flawOrSecret: 'Worries about making mistakes when speaking up in front of large groups.',
     signatureItem: 'Cheetah graphic t-shirt and pastel butterfly clips',
     speechPattern: 'Warm, thoughtful, asking clever questions about nature and animals',
-    genreAffinities: ['magical_animals', 'enchanted_forest', 'bedtime_lullaby'],
+    genreAffinities: ['solarpunk', 'biopunk_ecofiction', 'slice_of_life_twist'],
     visualProfile: {
       photoUrl: '/presets/preset_zara.jpg',
       appearanceTags: ['Curly afro puffs', 'Pastel butterfly clips', 'Green cheetah tee', 'Dark shorts', 'Green sneakers'],
@@ -284,7 +290,7 @@ export const INITIAL_PRESET_CHARACTERS: Character[] = [
     flawOrSecret: 'Tries to carry everyone else’s burdens without asking for help.',
     signatureItem: 'Bright green high-top sneakers and cheetah shirt',
     speechPattern: 'Inspiring, upbeat, greeting everyone with big smiles and open arms',
-    genreAffinities: ['kid_detective', 'fantasy', 'enchanted_forest'],
+    genreAffinities: ['arcanepunk_clockwork', 'maritime_adventure', 'historical_retro_futurism'],
     visualProfile: {
       photoUrl: '/presets/preset_kofi.jpg',
       appearanceTags: ['Short fade hair', 'Warm dark skin', 'Cheetah t-shirt', 'Grey pants', 'Green sneakers'],
@@ -306,7 +312,7 @@ export const INITIAL_PRESET_CHARACTERS: Character[] = [
     flawOrSecret: 'Sometimes misses quiet moments of silence in her bustling world.',
     signatureItem: 'Geometric dangle earrings and classic blue dress',
     speechPattern: 'Gentle, melodious, encouraging, offering comforting pearls of wisdom',
-    genreAffinities: ['fairytale', 'magical_animals', 'bedtime_lullaby'],
+    genreAffinities: ['silkpunk', 'gaslamp_fantasy', 'folklore_noir'],
     visualProfile: {
       photoUrl: '/presets/preset_elena.jpg',
       appearanceTags: ['Wavy brown top bun', 'Hazel eyes', 'Geometric earrings', 'Navy blue dress', 'Warm smile'],
@@ -336,3 +342,79 @@ export const SUBGENRE_MASHUPS = [
   { id: 'folklore_retro', name: 'Folklore Noir + Historical Invention', description: 'Vintage inventions meeting ancient mythical riddle guardians.' },
   { id: 'space_sliceoflife', name: 'Space Western + Slice-of-Life', description: 'Cozy hydroponic station diners on the rim of the asteroid belt.' },
 ];
+
+/**
+ * Surprise Me Mode: Weighted randomizer that selects a primary genre based on probability weights,
+ * then selects a second compatible genre to form an engaging, non-repetitive subgenre mashup!
+ */
+export function getWeightedSurpriseMashup(): {
+  genreId: string;
+  name: string;
+  description: string;
+  defaultTone: any;
+  sampleSeed: string;
+  primaryGenre: GenreDefinition;
+  secondaryGenre: GenreDefinition;
+  compatibilityNote: string;
+} {
+  const baseGenres = GENRE_PRESETS.filter((g) => g.id !== 'random_subgenre_mashup');
+
+  // Step 1: Weighted random choice for Genre 1
+  const totalWeight = baseGenres.reduce((acc, g) => acc + (g.weight || 1.0), 0);
+  let rand1 = Math.random() * totalWeight;
+  let g1 = baseGenres[0];
+  for (const g of baseGenres) {
+    const w = g.weight || 1.0;
+    if (rand1 <= w) {
+      g1 = g;
+      break;
+    }
+    rand1 -= w;
+  }
+
+  // Step 2: Select a second compatible genre
+  const compatibleIds = g1.compatibleGenreIds || [];
+  let candidateGenres = baseGenres.filter((g) => g.id !== g1.id && (compatibleIds.length === 0 || compatibleIds.includes(g.id)));
+  if (candidateGenres.length === 0) {
+    candidateGenres = baseGenres.filter((g) => g.id !== g1.id);
+  }
+
+  // Step 3: Weighted random choice for Genre 2 among candidate genres
+  const candidateTotalWeight = candidateGenres.reduce((acc, g) => acc + (g.weight || 1.0), 0);
+  let rand2 = Math.random() * candidateTotalWeight;
+  let g2 = candidateGenres[0];
+  for (const g of candidateGenres) {
+    const w = g.weight || 1.0;
+    if (rand2 <= w) {
+      g2 = g;
+      break;
+    }
+    rand2 -= w;
+  }
+
+  // Step 4: Synthesize rich Mashup definition
+  const mashupName = `${g1.name} × ${g2.name}`;
+  const description = `A weighted subgenre mashup combining ${g1.name} (${g1.tagline}) with compatible subgenre ${g2.name} (${g2.tagline}).`;
+  const compatibilityNote = `Weighted Randomizer selected ${g1.name} (weight: ${g1.weight || 1.0}) and paired it with compatible subgenre ${g2.name}.`;
+
+  const cleanSeed1 = g1.samplePromptSeed.replace(/\.$/, '');
+  const sampleSeed = `${cleanSeed1}, while discovering a hidden secret influenced by ${g2.name.toLowerCase()} technology and atmosphere.`;
+
+  return {
+    genreId: `${g1.name} + ${g2.name}`,
+    name: mashupName,
+    description,
+    defaultTone: g1.defaultTone,
+    sampleSeed,
+    primaryGenre: g1,
+    secondaryGenre: g2,
+    compatibilityNote,
+  };
+}
+
+/**
+ * Randomization System: Pick a single genre or generate a random subgenre mashup!
+ */
+export function getRandomGenreOrMashup(): { genreId: string; name: string; description: string; defaultTone: any; sampleSeed: string } {
+  return getWeightedSurpriseMashup();
+}
