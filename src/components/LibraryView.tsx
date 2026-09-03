@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   BookOpen,
   PlusCircle,
@@ -13,6 +13,9 @@ import {
   Compass,
   ArrowRight,
   Filter,
+  X,
+  User,
+  Tag,
 } from 'lucide-react';
 import { StoryBook, StoryGenre } from '../types';
 import { GENRE_PRESETS } from '../utils/presets';
@@ -38,15 +41,115 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
   const [selectedGenreFilter, setSelectedGenreFilter] = useState<string>('all');
   const [filterFavoriteOnly, setFilterFavoriteOnly] = useState(false);
 
-  const filteredBooks = books.filter((b) => {
-    const matchesSearch =
-      b.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      b.synopsis.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      b.cast.some((c) => c.name.toLowerCase().includes(searchQuery.toLowerCase()));
-    const matchesGenre = selectedGenreFilter === 'all' || b.genre === selectedGenreFilter;
-    const matchesFav = !filterFavoriteOnly || b.isFavorite;
-    return matchesSearch && matchesGenre && matchesFav;
-  });
+  // Extract all unique characters across all saved books for quick-filter chips
+  const collectionCharacters = useMemo(() => {
+    const charMap = new Map<string, { id: string; name: string; photoUrl?: string; role?: string; count: number }>();
+    books.forEach((b) => {
+      (b.cast || []).forEach((c) => {
+        if (!c?.name) return;
+        const key = c.name.toLowerCase().trim();
+        const existing = charMap.get(key);
+        if (existing) {
+          existing.count += 1;
+        } else {
+          charMap.set(key, {
+            id: c.id,
+            name: c.name,
+            photoUrl: c.visualProfile?.photoUrl,
+            role: c.titleOrRole || c.role,
+            count: 1,
+          });
+        }
+      });
+    });
+    return Array.from(charMap.values());
+  }, [books]);
+
+  // Helper to extract a small snippet around matching text
+  const extractSnippet = (fullText: string, query: string, maxLength = 55) => {
+    const idx = fullText.toLowerCase().indexOf(query.toLowerCase());
+    if (idx === -1) return '';
+    const start = Math.max(0, idx - 12);
+    const end = Math.min(fullText.length, idx + query.length + maxLength - 12);
+    const prefix = start > 0 ? '…' : '';
+    const suffix = end < fullText.length ? '…' : '';
+    return `${prefix}${fullText.substring(start, end).trim()}${suffix}`;
+  };
+
+  // Find match details for a book across title, cast, synopsis, chapter text, items, notes
+  const getBookMatch = (book: StoryBook, query: string): { label: string; detail: string } | null => {
+    if (!query.trim()) return null;
+    const q = query.toLowerCase().trim();
+
+    // 1. Character matches (name, role, species/archetype, signature item, personality)
+    for (const c of book.cast || []) {
+      if (c.name?.toLowerCase().includes(q)) {
+        return { label: 'Character', detail: c.name };
+      }
+      if (c.titleOrRole?.toLowerCase().includes(q)) {
+        return { label: 'Role', detail: `${c.name} (${c.titleOrRole})` };
+      }
+      if (c.visualProfile?.speciesOrArchetype?.toLowerCase().includes(q)) {
+        return { label: 'Archetype', detail: `${c.name}: ${c.visualProfile.speciesOrArchetype}` };
+      }
+      if (c.signatureItem?.toLowerCase().includes(q)) {
+        return { label: 'Item', detail: `${c.name}'s ${c.signatureItem}` };
+      }
+      if (Array.isArray(c.personality) && c.personality.some((p) => p.toLowerCase().includes(q))) {
+        const matchedTrait = c.personality.find((p) => p.toLowerCase().includes(q));
+        return { label: 'Trait', detail: `${c.name}: ${matchedTrait}` };
+      }
+    }
+
+    // 2. Title match
+    if (book.title?.toLowerCase().includes(q)) {
+      return { label: 'Title', detail: book.title };
+    }
+
+    // 3. Synopsis match
+    if (book.synopsis?.toLowerCase().includes(q)) {
+      return { label: 'Synopsis', detail: extractSnippet(book.synopsis, q) };
+    }
+
+    // 4. Chapter content, summaries and titles
+    for (const ch of book.chapters || []) {
+      if (ch.title?.toLowerCase().includes(q)) {
+        return { label: `Chapter ${ch.chapterNumber}`, detail: ch.title };
+      }
+      if (ch.summary?.toLowerCase().includes(q)) {
+        return { label: `Chapter ${ch.chapterNumber}`, detail: extractSnippet(ch.summary, q) };
+      }
+      if (ch.content?.toLowerCase().includes(q)) {
+        return { label: `Chapter ${ch.chapterNumber} Story`, detail: extractSnippet(ch.content, q) };
+      }
+    }
+
+    // 5. Moral Lesson
+    if (book.moralLesson?.toLowerCase().includes(q)) {
+      return { label: 'Theme', detail: book.moralLesson };
+    }
+
+    // 6. Genre & Tone
+    if (book.genre?.toLowerCase().includes(q)) {
+      return { label: 'Genre', detail: book.genre.replace(/_/g, ' ') };
+    }
+
+    return null;
+  };
+
+  const filteredBooks = useMemo(() => {
+    return books
+      .map((b) => ({
+        book: b,
+        match: searchQuery.trim() ? getBookMatch(b, searchQuery) : null,
+      }))
+      .filter(({ book, match }) => {
+        const matchesSearch = !searchQuery.trim() || match !== null;
+        const matchesGenre = selectedGenreFilter === 'all' || book.genre === selectedGenreFilter;
+        const matchesFav = !filterFavoriteOnly || book.isFavorite;
+        return matchesSearch && matchesGenre && matchesFav;
+      });
+  }, [books, searchQuery, selectedGenreFilter, filterFavoriteOnly]);
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8 animate-fade-in">
@@ -96,19 +199,29 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
         <div className="absolute top-0 right-0 -mr-16 -mt-16 w-80 h-80 rounded-full bg-gradient-to-br from-[#8C9A86]/20 to-[#C47C5D]/15 blur-3xl pointer-events-none" />
       </div>
 
-      {/* Library Controls & Search */}
+      {/* Library Controls & Word Search Tool */}
       <div className="space-y-4">
         <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
-          <div className="relative w-full sm:w-80">
-            <Search className="w-4 h-4 text-[#8C827A] absolute left-3 top-3" />
+          {/* Word Search Input */}
+          <div className="relative w-full sm:w-96">
+            <Search className="w-4 h-4 text-[#8C827A] absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
             <input
               id="library-search-input"
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search books, synopses, cast..."
-              className="w-full pl-9 pr-4 py-2.5 rounded-xl bg-white border border-[#DFD8CA] text-[#3A342F] placeholder-[#9E968D] focus:outline-none focus:border-[#70826C] focus:ring-1 focus:ring-[#70826C]/20 text-xs sm:text-sm shadow-xs"
+              placeholder="Search characters, keywords, chapters, items..."
+              className="w-full pl-10 pr-9 py-2.5 rounded-xl bg-white border border-[#DFD8CA] text-[#3A342F] placeholder-[#9E968D] focus:outline-none focus:border-[#70826C] focus:ring-1 focus:ring-[#70826C]/20 text-xs sm:text-sm shadow-xs"
             />
+            {searchQuery && (
+              <button
+                onClick={() => setSearchQuery('')}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-[#8C827A] hover:text-[#3A342F] p-0.5 rounded-full hover:bg-[#F5EFEB] transition-colors"
+                title="Clear Search"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            )}
           </div>
 
           <div className="flex items-center gap-2 w-full sm:w-auto overflow-x-auto pb-1">
@@ -140,24 +253,102 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
           </div>
         </div>
 
+        {/* Character Quick-Filter Pills */}
+        {collectionCharacters.length > 0 && (
+          <div className="flex items-center gap-2 overflow-x-auto pb-1.5 text-xs pt-0.5">
+            <span className="text-[11px] font-bold text-[#8C827A] whitespace-nowrap flex items-center gap-1">
+              <User className="w-3.5 h-3.5 text-[#70826C]" />
+              <span>Find Character:</span>
+            </span>
+            {collectionCharacters.map((char) => {
+              const isSelected = searchQuery.toLowerCase().trim() === char.name.toLowerCase().trim();
+              return (
+                <button
+                  key={char.id}
+                  onClick={() => setSearchQuery(isSelected ? '' : char.name)}
+                  className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold transition-all whitespace-nowrap border shadow-2xs ${
+                    isSelected
+                      ? 'bg-[#5B6B56] text-white border-[#5B6B56]'
+                      : 'bg-white text-[#4A443F] border-[#DFD8CA] hover:border-[#70826C] hover:bg-[#F5EFEB]'
+                  }`}
+                  title={`Find books featuring ${char.name}`}
+                >
+                  {char.photoUrl ? (
+                    <img
+                      src={char.photoUrl}
+                      alt={char.name}
+                      referrerPolicy="no-referrer"
+                      className="w-4 h-4 rounded-full object-cover"
+                    />
+                  ) : (
+                    <span className="w-4 h-4 rounded-full bg-[#EFEAE1] text-[#70826C] flex items-center justify-center text-[9px] font-bold">
+                      {char.name[0]}
+                    </span>
+                  )}
+                  <span>{char.name}</span>
+                  <span
+                    className={`text-[10px] px-1.5 py-0.2 rounded-full ${
+                      isSelected ? 'bg-white/20 text-white' : 'bg-[#EFEAE1] text-[#6E665E]'
+                    }`}
+                  >
+                    {char.count}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        )}
+
+        {/* Search Results Summary Banner */}
+        {searchQuery.trim() && (
+          <div className="flex items-center justify-between gap-3 px-4 py-2.5 rounded-2xl bg-[#EAF0E8] border border-[#D0E0CC] text-[#3F5439] text-xs">
+            <div className="flex items-center gap-2">
+              <Sparkles className="w-4 h-4 text-[#5B6B56]" />
+              <span>
+                Found <strong>{filteredBooks.length}</strong> {filteredBooks.length === 1 ? 'storybook' : 'storybooks'} matching "<strong>{searchQuery}</strong>"
+              </span>
+            </div>
+            <button
+              onClick={() => setSearchQuery('')}
+              className="text-xs font-bold text-[#3F5439] hover:underline flex items-center gap-1"
+            >
+              <X className="w-3.5 h-3.5" />
+              <span>Clear search</span>
+            </button>
+          </div>
+        )}
+
         {/* Bookshelf Grid */}
         {filteredBooks.length === 0 ? (
           <div className="p-16 text-center rounded-3xl bg-[#F5EFEB]/70 border border-[#DFD8CA] space-y-4">
             <BookOpen className="w-10 h-10 mx-auto text-[#A0988F]" />
-            <h3 className="font-serif text-xl font-bold text-[#3A342F]">No Storybooks Match Your Query</h3>
+            <h3 className="font-serif text-xl font-bold text-[#3A342F]">
+              {searchQuery ? `No Storybooks Match "${searchQuery}"` : 'No Storybooks In Library'}
+            </h3>
             <p className="text-xs text-[#78716A] max-w-sm mx-auto">
-              Start crafting an enchanted chronicle with your custom cast!
+              {searchQuery
+                ? 'Try searching for another character name, magical item, setting, or keyword.'
+                : 'Start crafting an enchanted chronicle with your custom cast!'}
             </p>
-            <button
-              onClick={onCreateNewStory}
-              className="px-5 py-2.5 rounded-xl bg-[#5B6B56] text-white font-bold text-xs shadow-sm hover:bg-[#4D5C47]"
-            >
-              Weave First Story
-            </button>
+            {searchQuery ? (
+              <button
+                onClick={() => setSearchQuery('')}
+                className="px-5 py-2.5 rounded-xl bg-[#5B6B56] text-white font-bold text-xs shadow-sm hover:bg-[#4D5C47]"
+              >
+                Clear Word Search
+              </button>
+            ) : (
+              <button
+                onClick={onCreateNewStory}
+                className="px-5 py-2.5 rounded-xl bg-[#5B6B56] text-white font-bold text-xs shadow-sm hover:bg-[#4D5C47]"
+              >
+                Weave First Story
+              </button>
+            )}
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-            {filteredBooks.map((book) => {
+            {filteredBooks.map(({ book, match }) => {
               const completedChapters = book.chapters.length;
               const progressPct = Math.round((completedChapters / book.targetChapters) * 100);
 
@@ -216,6 +407,19 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
                       <p className="text-[#6E665E] leading-relaxed line-clamp-2">
                         {book.synopsis}
                       </p>
+
+                      {/* Word Search Match Highlight */}
+                      {match && (
+                        <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-[#EAF0E8] border border-[#D0E0CC] text-[#2F442A] text-[11px]">
+                          <Tag className="w-3.5 h-3.5 text-[#5B6B56] shrink-0" />
+                          <span className="font-bold text-[#2E4228] shrink-0">
+                            Found in {match.label}:
+                          </span>
+                          <span className="truncate italic text-[#3F5439]">
+                            "{match.detail}"
+                          </span>
+                        </div>
+                      )}
 
                       {/* Cast avatars row */}
                       <div className="space-y-1 pt-1">
