@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   BookOpen,
@@ -211,6 +211,61 @@ export const StoryReader: React.FC<StoryReaderProps> = ({
   const currentTranslationKey = `${currentChapter.id}_${selectedLanguage}`;
   const activeTranslation = selectedLanguage !== 'en' ? translationsCache[currentTranslationKey] : null;
   const currentLangOption = SUPPORTED_LANGUAGES.find((l) => l.id === selectedLanguage) || SUPPORTED_LANGUAGES[0];
+
+  // Lazy Image Prefetch Engine: Automatically generate artwork for current and upcoming pages (lookahead = 2)
+  const pendingLazyPages = useRef<Set<number>>(new Set());
+  const [lazyLoadingPages, setLazyLoadingPages] = useState<Record<number, boolean>>({});
+
+  useEffect(() => {
+    const lookAheadCount = 2;
+    const startIdx = Math.max(0, currentChapterIndex);
+    const endIdx = Math.min(book.chapters.length - 1, currentChapterIndex + lookAheadCount);
+
+    for (let idx = startIdx; idx <= endIdx; idx++) {
+      const ch = book.chapters[idx];
+      if (!ch) continue;
+
+      const isMissingImage = !ch.imageUrl || ch.imageUrl === '';
+      if (isMissingImage && !pendingLazyPages.current.has(idx)) {
+        pendingLazyPages.current.add(idx);
+        setLazyLoadingPages((prev) => ({ ...prev, [idx]: true }));
+
+        const characterAnchorsString = (book.cast || [])
+          .map((c) => `${c.name}: ${c.appearanceTags?.join(', ') || c.visualProfile?.artisticStylePrompt || ''}`)
+          .join('; ');
+
+        fetch('/api/story/generate-illustration', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            prompt: ch.illustrationPrompt || `${book.title}, Chapter ${ch.chapterNumber || idx + 1} scene`,
+            storyText: ch.content || '',
+            artStyle: book.artStyle || 'hyper_articulated_realism',
+            aspectRatio: '16:9',
+            characterAnchors: characterAnchorsString,
+            chapterNumber: ch.chapterNumber || idx + 1,
+          }),
+        })
+          .then((res) => res.json())
+          .then((data) => {
+            if (data.success && data.imageUrl) {
+              const updatedChapters = [...book.chapters];
+              if (updatedChapters[idx]) {
+                updatedChapters[idx] = { ...updatedChapters[idx], imageUrl: data.imageUrl };
+                onUpdateBook({ ...book, chapters: updatedChapters });
+              }
+            }
+          })
+          .catch((err) => {
+            console.warn(`Lazy image generation failed for chapter ${idx + 1}:`, err);
+          })
+          .finally(() => {
+            pendingLazyPages.current.delete(idx);
+            setLazyLoadingPages((prev) => ({ ...prev, [idx]: false }));
+          });
+      }
+    }
+  }, [currentChapterIndex, book.chapters, book.id]);
 
   // Sync ambient soundscape with settings
   useEffect(() => {
@@ -1673,7 +1728,7 @@ export const StoryReader: React.FC<StoryReaderProps> = ({
         })()}
 
         {/* Context-Aware Scene Illustration Card */}
-        {currentChapter.imageUrl && (
+        {currentChapter.imageUrl ? (
           <motion.div
             key={`img-${currentChapterIndex}`}
             initial={{ opacity: 0, rotateY: 90 }}
@@ -1721,6 +1776,39 @@ export const StoryReader: React.FC<StoryReaderProps> = ({
                   {book.artStyle.replace('_', ' ')}
                 </span>
               </div>
+            </div>
+          </motion.div>
+        ) : (
+          <motion.div
+            key={`img-lazy-${currentChapterIndex}`}
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="relative rounded-3xl overflow-hidden border border-[#D0E0CC] bg-gradient-to-br from-[#EAF0E8] via-[#F4F8F3] to-[#E5EFE3] p-8 text-center space-y-4 shadow-xs"
+          >
+            <div className="w-12 h-12 mx-auto rounded-2xl bg-[#5B6B56]/10 flex items-center justify-center text-[#3B5436]">
+              <Sparkles className="w-6 h-6 animate-spin text-[#3B5436]" />
+            </div>
+            <div className="space-y-1">
+              <h3 className="font-serif text-lg font-bold text-[#3A342F]">
+                Painting Chapter {currentChapter.chapterNumber} Artwork...
+              </h3>
+              <p className="text-xs text-[#5B6B56] max-w-md mx-auto">
+                Lazy-loading 3D Pixar illustration in the background. It will automatically update as soon as it's ready!
+              </p>
+            </div>
+            <div className="flex items-center justify-center gap-3 pt-2">
+              <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white/90 border border-[#D0E0CC] text-[11px] font-semibold text-[#3B5436] shadow-2xs">
+                <div className="w-2 h-2 rounded-full bg-[#5B6B56] animate-ping" />
+                <span>Generating Scene Illustration...</span>
+              </div>
+              <button
+                onClick={handleRegenerateSceneIllustration}
+                disabled={isRegeneratingImage}
+                className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-[#5B6B56] hover:bg-[#485744] text-white text-[11px] font-semibold transition-colors shadow-2xs"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${isRegeneratingImage ? 'animate-spin' : ''}`} />
+                <span>Force Generate Now</span>
+              </button>
             </div>
           </motion.div>
         )}

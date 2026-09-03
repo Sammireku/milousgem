@@ -308,11 +308,13 @@ export const StoryCreator: React.FC<StoryCreatorProps> = ({
           .map((c) => `${c.name}: ${c.appearanceTags?.join(', ') || c.visualProfile?.artisticStylePrompt || ''}`)
           .join('; ');
 
-        // Generate context-aware scene illustrations for all chapters in the book
+        // Lazy Image Generation Strategy: Generate illustrations ONLY for the first 3 pages upfront
+        // Pages 4+ will be lazy-loaded in background as the reader progresses in StoryReader
+        const initialPagesCount = Math.min(3, rawChapters.length);
         const chapterImageUrls: string[] = [];
-        for (let i = 0; i < rawChapters.length; i++) {
+        for (let i = 0; i < initialPagesCount; i++) {
           const ch = rawChapters[i];
-          setGenerationStepStatus(`Painting page illustration ${i + 1} of ${rawChapters.length}...`);
+          setGenerationStepStatus(`Painting initial illustration ${i + 1} of ${initialPagesCount}...`);
           try {
             const illuRes = await fetch('/api/story/generate-illustration', {
               method: 'POST',
@@ -330,11 +332,11 @@ export const StoryCreator: React.FC<StoryCreatorProps> = ({
             if (illuData.success && illuData.imageUrl) {
               chapterImageUrls.push(illuData.imageUrl);
             } else {
-              chapterImageUrls.push(chapterImageUrls[0] || effectiveCast[0]?.visualProfile.photoUrl || '');
+              chapterImageUrls.push('');
             }
           } catch (e) {
             console.warn(`Chapter ${i + 1} illustration error:`, e);
-            chapterImageUrls.push(chapterImageUrls[0] || effectiveCast[0]?.visualProfile.photoUrl || '');
+            chapterImageUrls.push('');
           }
         }
 
@@ -347,7 +349,7 @@ export const StoryCreator: React.FC<StoryCreatorProps> = ({
           summary: ch.summary || 'A milestone in the journey.',
           content: ch.content || 'The story unfolds with warmth and wonder.',
           illustrationPrompt: ch.illustrationPrompt,
-          imageUrl: chapterImageUrls[idx] || coverImageUrl,
+          imageUrl: idx < initialPagesCount ? (chapterImageUrls[idx] || coverImageUrl) : '',
           choices: [
             {
               id: `c_${idx}_1`,
