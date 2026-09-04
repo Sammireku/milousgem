@@ -32,11 +32,13 @@ import {
 import { GENRE_PRESETS, ART_STYLES, KIDS_MORAL_THEMES, getRandomGenreOrMashup, getWeightedSurpriseMashup } from '../utils/presets';
 import { CharacterCard } from './CharacterCard';
 import { loadStoryDraft, saveStoryDraft, clearStoryDraft, StoryDraft } from '../utils/storage';
+import { buildCharacterVisualAnchors, sanitizeStoryMetaText } from '../utils/characterVisual';
 import confetti from 'canvas-confetti';
 
 interface StoryCreatorProps {
   characters: Character[];
   onCreateBook: (book: StoryBook) => void;
+  onUpdateBook?: (book: StoryBook) => void;
   onOpenCharacterStudio: () => void;
   preselectedCharacter?: Character | null;
 }
@@ -44,6 +46,7 @@ interface StoryCreatorProps {
 export const StoryCreator: React.FC<StoryCreatorProps> = ({
   characters,
   onCreateBook,
+  onUpdateBook,
   onOpenCharacterStudio,
   preselectedCharacter,
 }) => {
@@ -213,8 +216,12 @@ export const StoryCreator: React.FC<StoryCreatorProps> = ({
       });
       const data = await res.json();
       if (data.success && Array.isArray(data.premises) && data.premises.length > 0) {
-        setSuggestedPremises(data.premises);
-        const chosen = data.premises[0];
+        const cleanedPremises = data.premises.map((p: any) => ({
+          title: sanitizeStoryMetaText(p.title || ''),
+          synopsis: sanitizeStoryMetaText(p.synopsis || ''),
+        }));
+        setSuggestedPremises(cleanedPremises);
+        const chosen = cleanedPremises[0];
         setTitle(chosen.title);
         setSynopsis(chosen.synopsis);
       } else {
@@ -304,9 +311,7 @@ export const StoryCreator: React.FC<StoryCreatorProps> = ({
         }
 
         const rawChapters = fullBookData.chapters || [];
-        const characterAnchorsString = effectiveCast
-          .map((c) => `${c.name}: ${c.appearanceTags?.join(', ') || c.visualProfile?.artisticStylePrompt || ''}`)
-          .join('; ');
+        const characterAnchorsString = buildCharacterVisualAnchors(effectiveCast);
 
         // Lazy Image Generation Strategy: Generate illustrations ONLY for the first 3 pages upfront
         // Pages 4+ will be lazy-loaded in background as the reader progresses in StoryReader
@@ -345,9 +350,9 @@ export const StoryCreator: React.FC<StoryCreatorProps> = ({
         const allChapters: StoryChapter[] = rawChapters.map((ch: any, idx: number) => ({
           id: `chap_${idx + 1}_${Date.now()}`,
           chapterNumber: ch.chapterNumber || idx + 1,
-          title: ch.title || `Chapter ${idx + 1}`,
-          summary: ch.summary || 'A milestone in the journey.',
-          content: ch.content || 'The story unfolds with warmth and wonder.',
+          title: sanitizeStoryMetaText(ch.title || `Chapter ${idx + 1}`),
+          summary: sanitizeStoryMetaText(ch.summary || 'A milestone in the journey.'),
+          content: sanitizeStoryMetaText(ch.content || 'The story unfolds with warmth and wonder.'),
           illustrationPrompt: ch.illustrationPrompt,
           imageUrl: idx < initialPagesCount ? (chapterImageUrls[idx] || coverImageUrl) : '',
           choices: [
@@ -365,8 +370,8 @@ export const StoryCreator: React.FC<StoryCreatorProps> = ({
         const newBook: StoryBook = {
           id: `book_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
           userId: 'default',
-          title: finalTitle,
-          synopsis: finalSynopsis,
+          title: sanitizeStoryMetaText(finalTitle),
+          synopsis: sanitizeStoryMetaText(finalSynopsis),
           genre: selectedGenre,
           artStyle: selectedArtStyle,
           tone: tone,
@@ -439,43 +444,17 @@ export const StoryCreator: React.FC<StoryCreatorProps> = ({
 
       const generatedChapter = chapterData.chapter;
 
-      setGenerationStepStatus('Painting context-aware scene illustration...');
-
-      // 2. Generate initial scene illustration
-      let chapterImageUrl = '';
-      try {
-        const characterAnchorsString = effectiveCast
-          .map((c) => `${c.name}: ${c.appearanceTags?.join(', ') || c.visualProfile?.artisticStylePrompt || ''}`)
-          .join('; ');
-
-        const illuRes = await fetch('/api/story/generate-illustration', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            prompt: generatedChapter.illustrationPrompt,
-            storyText: generatedChapter.content,
-            artStyle: selectedArtStyle,
-            aspectRatio: '16:9',
-            characterAnchors: characterAnchorsString,
-            chapterNumber: 1,
-          }),
-        });
-        const illuData = await illuRes.json();
-        if (illuData.success && illuData.imageUrl) {
-          chapterImageUrl = illuData.imageUrl;
-        }
-      } catch (illuErr) {
-        console.warn('Illustration fetch error:', illuErr);
-      }
-
+      // Construct initial chapter with non-blocking illustration loading
+      const leadPortrait = effectiveCast[0]?.visualProfile?.photoUrl || '';
       const firstChapter: StoryChapter = {
         id: `chap_1_${Date.now()}`,
         chapterNumber: 1,
-        title: generatedChapter.title || (isKidsMode ? 'Chapter 1: A Wonderful Discovery' : 'Chapter 1: The Inciting Threshold'),
-        summary: generatedChapter.summary || 'The journey begins under unprecedented circumstances.',
-        content: generatedChapter.content || 'The world shifted on its axis as the journey began...',
+        title: sanitizeStoryMetaText(generatedChapter.title || (isKidsMode ? 'Chapter 1: A Wonderful Discovery' : 'Chapter 1: The Inciting Threshold')),
+        summary: sanitizeStoryMetaText(generatedChapter.summary || 'The journey begins under unprecedented circumstances.'),
+        content: sanitizeStoryMetaText(generatedChapter.content || 'The world shifted on its axis as the journey began...'),
         illustrationPrompt: generatedChapter.illustrationPrompt,
-        imageUrl: chapterImageUrl || effectiveCast[0]?.visualProfile.photoUrl,
+        imageUrl: '',
+        imageLoading: true,
         choices: generatedChapter.choices || [
           {
             id: 'c1_investigate',
@@ -499,8 +478,8 @@ export const StoryCreator: React.FC<StoryCreatorProps> = ({
       const newBook: StoryBook = {
         id: `book_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
         userId: 'default',
-        title: finalTitle,
-        synopsis: finalSynopsis,
+        title: sanitizeStoryMetaText(finalTitle),
+        synopsis: sanitizeStoryMetaText(finalSynopsis),
         genre: selectedGenre,
         artStyle: selectedArtStyle,
         tone: tone,
@@ -529,7 +508,7 @@ export const StoryCreator: React.FC<StoryCreatorProps> = ({
         currentChapterIndex: 0,
         isCompleted: false,
         isFavorite: false,
-        coverImage: chapterImageUrl || effectiveCast[0]?.visualProfile.photoUrl,
+        coverImage: leadPortrait,
         createdAt: Date.now(),
         updatedAt: Date.now(),
       };
@@ -543,7 +522,61 @@ export const StoryCreator: React.FC<StoryCreatorProps> = ({
       } catch (e) {}
 
       clearStoryDraft();
+      // Instantly open the book in the reader so the user can begin reading Chapter 1
       onCreateBook(newBook);
+      setIsGenerating(false);
+      setGenerationStepStatus('');
+
+      // Background stream: paint the dedicated scene illustration and update book when ready
+      (async () => {
+        try {
+          const characterAnchorsString = buildCharacterVisualAnchors(effectiveCast);
+          const illuRes = await fetch('/api/story/generate-illustration', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              prompt: generatedChapter.illustrationPrompt,
+              storyText: generatedChapter.content,
+              artStyle: selectedArtStyle,
+              aspectRatio: '16:9',
+              characterAnchors: characterAnchorsString,
+              chapterNumber: 1,
+            }),
+          });
+          const illuData = await illuRes.json();
+          const finalImageUrl = illuData.success && illuData.imageUrl ? illuData.imageUrl : leadPortrait;
+
+          if (onUpdateBook) {
+            onUpdateBook({
+              ...newBook,
+              coverImage: finalImageUrl,
+              chapters: [
+                {
+                  ...firstChapter,
+                  imageUrl: finalImageUrl,
+                  imageLoading: false,
+                },
+              ],
+              updatedAt: Date.now(),
+            });
+          }
+        } catch (illuErr) {
+          console.warn('Asynchronous Chapter 1 illustration fallback:', illuErr);
+          if (onUpdateBook) {
+            onUpdateBook({
+              ...newBook,
+              chapters: [
+                {
+                  ...firstChapter,
+                  imageUrl: leadPortrait,
+                  imageLoading: false,
+                },
+              ],
+              updatedAt: Date.now(),
+            });
+          }
+        }
+      })();
     } catch (err: any) {
       console.error('Error creating book:', err);
       setErrorMsg(err.message || 'Failed to weave story. Please check parameters and try again.');

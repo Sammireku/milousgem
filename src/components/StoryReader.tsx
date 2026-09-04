@@ -56,6 +56,7 @@ import { VocabularyModal, VocabularyEntry } from './VocabularyModal';
 import { ColoringPageModal } from './ColoringPageModal';
 import { ambientSound, SOUNDSCAPE_OPTIONS, SoundscapeType } from '../utils/ambientSound';
 import { STORY_VOCABULARY_DATABASE } from '../utils/vocabulary';
+import { buildCharacterVisualAnchors, sanitizeStoryMetaText } from '../utils/characterVisual';
 import confetti from 'canvas-confetti';
 
 export interface LanguageOption {
@@ -230,9 +231,7 @@ export const StoryReader: React.FC<StoryReaderProps> = ({
         pendingLazyPages.current.add(idx);
         setLazyLoadingPages((prev) => ({ ...prev, [idx]: true }));
 
-        const characterAnchorsString = (book.cast || [])
-          .map((c) => `${c.name}: ${c.appearanceTags?.join(', ') || c.visualProfile?.artisticStylePrompt || ''}`)
-          .join('; ');
+        const characterAnchorsString = buildCharacterVisualAnchors(book.cast || []);
 
         fetch('/api/story/generate-illustration', {
           method: 'POST',
@@ -567,7 +566,7 @@ export const StoryReader: React.FC<StoryReaderProps> = ({
           storyText: currentChapter.content,
           artStyle: book.artStyle,
           aspectRatio: '16:9',
-          characterAnchors: book.cast.map((c) => `${c.name}: ${c.appearanceTags?.join(', ')}`).join('; '),
+          characterAnchors: buildCharacterVisualAnchors(book.cast || []),
           chapterNumber: currentChapter.chapterNumber,
         }),
       });
@@ -638,39 +637,16 @@ export const StoryReader: React.FC<StoryReaderProps> = ({
 
       const nextChapData = data.chapter;
 
-      setAdvancingStatus(`Painting scene illustration for Chapter ${nextChapterNumber}...`);
-
-      // Generate scene illustration with Page Context Injection
-      let nextImageUrl = '';
-      try {
-        const illuRes = await fetch('/api/story/generate-illustration', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            prompt: nextChapData.illustrationPrompt,
-            storyText: nextChapData.content,
-            artStyle: book.artStyle,
-            aspectRatio: '16:9',
-            characterAnchors: book.cast.map((c) => `${c.name}: ${c.appearanceTags?.join(', ')}`).join('; '),
-            chapterNumber: nextChapterNumber,
-          }),
-        });
-        const illuData = await illuRes.json();
-        if (illuData.success && illuData.imageUrl) {
-          nextImageUrl = illuData.imageUrl;
-        }
-      } catch (illuErr) {
-        console.warn('Next chapter image generation fallback:', illuErr);
-      }
-
+      // Construct the new chapter immediately for instant UI response (Non-blocking illustration)
       const newChapter: StoryChapter = {
         id: `chap_${nextChapterNumber}_${Date.now()}`,
         chapterNumber: nextChapterNumber,
-        title: nextChapData.title || `Chapter ${nextChapterNumber}`,
-        summary: nextChapData.summary || 'The narrative deepens...',
-        content: nextChapData.content || 'The journey carried forward into the unknown.',
+        title: sanitizeStoryMetaText(nextChapData.title || `Chapter ${nextChapterNumber}`),
+        summary: sanitizeStoryMetaText(nextChapData.summary || 'The narrative deepens...'),
+        content: sanitizeStoryMetaText(nextChapData.content || 'The journey carried forward into the unknown.'),
         illustrationPrompt: nextChapData.illustrationPrompt,
-        imageUrl: nextImageUrl || book.cast[0]?.visualProfile.photoUrl,
+        imageUrl: '',
+        imageLoading: true,
         choices: nextChapData.choices || [],
         memoryUpdate: nextChapData.memoryUpdate,
         createdAt: Date.now(),
@@ -701,10 +677,12 @@ export const StoryReader: React.FC<StoryReaderProps> = ({
           ...book.plotMemory.worldStateChanges,
           ...(nextChapData.memoryUpdate?.worldStateChanges || []),
         ],
+        currentObjective: nextChapData.memoryUpdate?.currentObjective || book.plotMemory?.currentObjective,
+        emotionalArcStatus: nextChapData.memoryUpdate?.emotionalArcStatus || book.plotMemory?.emotionalArcStatus,
         historyBuffer: data.historyBuffer || book.plotMemory?.historyBuffer,
       };
 
-      const updatedBook: StoryBook = {
+      const intermediateBook: StoryBook = {
         ...book,
         chapters: [...updatedExistingChapters, newChapter],
         currentChapterIndex: updatedExistingChapters.length,
@@ -713,7 +691,10 @@ export const StoryReader: React.FC<StoryReaderProps> = ({
         updatedAt: Date.now(),
       };
 
-      onUpdateBook(updatedBook);
+      // Instantly advance the reader to the new chapter prose
+      onUpdateBook(intermediateBook);
+      setIsAdvancingChapter(false);
+      setAdvancingStatus('');
 
       if (isNextFinal) {
         try {
@@ -724,6 +705,43 @@ export const StoryReader: React.FC<StoryReaderProps> = ({
           });
         } catch (e) {}
       }
+
+      // Asynchronously generate the context-aware scene illustration in the background
+      (async () => {
+        try {
+          const illuRes = await fetch('/api/story/generate-illustration', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              prompt: nextChapData.illustrationPrompt,
+              storyText: nextChapData.content,
+              artStyle: book.artStyle,
+              aspectRatio: '16:9',
+              characterAnchors: buildCharacterVisualAnchors(book.cast || []),
+              chapterNumber: nextChapterNumber,
+            }),
+          });
+          const illuData = await illuRes.json();
+          const finalImageUrl = illuData.success && illuData.imageUrl ? illuData.imageUrl : (book.cast[0]?.visualProfile?.photoUrl || '');
+
+          onUpdateBook({
+            ...intermediateBook,
+            chapters: intermediateBook.chapters.map((ch) =>
+              ch.id === newChapter.id ? { ...ch, imageUrl: finalImageUrl, imageLoading: false } : ch
+            ),
+            updatedAt: Date.now(),
+          });
+        } catch (illuErr) {
+          console.warn('Asynchronous scene illustration fallback:', illuErr);
+          onUpdateBook({
+            ...intermediateBook,
+            chapters: intermediateBook.chapters.map((ch) =>
+              ch.id === newChapter.id ? { ...ch, imageUrl: book.cast[0]?.visualProfile?.photoUrl || '', imageLoading: false } : ch
+            ),
+            updatedAt: Date.now(),
+          });
+        }
+      })();
     } catch (err: any) {
       console.error('Error advancing chapter:', err);
       setAdvancingError(err.message || 'Failed to generate next chapter. Please try again.');
@@ -1498,6 +1516,28 @@ export const StoryReader: React.FC<StoryReaderProps> = ({
               </button>
             </div>
 
+            {/* Active Narrative Arc Stage & Objective */}
+            {(book.plotMemory.currentObjective || book.plotMemory.emotionalArcStatus) && (
+              <div className="p-3 rounded-2xl bg-[#EBE4DC] border border-[#D5CCC0] text-xs space-y-1">
+                <div className="flex items-center justify-between">
+                  <span className="font-bold uppercase tracking-wider text-[#3D3730] flex items-center gap-1.5">
+                    <Compass className="w-3.5 h-3.5 text-[#5B6B56]" />
+                    Current Chapter Arc Beat
+                  </span>
+                  {book.plotMemory.emotionalArcStatus && (
+                    <span className="px-2 py-0.5 rounded-full bg-[#3D3730] text-[#F8F5EE] text-[10px] font-semibold uppercase tracking-wider">
+                      {book.plotMemory.emotionalArcStatus}
+                    </span>
+                  )}
+                </div>
+                {book.plotMemory.currentObjective && (
+                  <p className="text-[#4A443F] font-medium leading-relaxed">
+                    {book.plotMemory.currentObjective}
+                  </p>
+                )}
+              </div>
+            )}
+
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs">
               {/* Active Inventory */}
               <div className="p-3.5 rounded-2xl bg-[#F5EFEB] border border-[#DFD8CA] space-y-2">
@@ -1539,20 +1579,28 @@ export const StoryReader: React.FC<StoryReaderProps> = ({
                 </ul>
               </div>
 
-              {/* Foreshadowed Clues */}
+              {/* Foreshadowed Clues & World State */}
               <div className="p-3.5 rounded-2xl bg-[#F5EFEB] border border-[#DFD8CA] space-y-2">
                 <div className="flex items-center gap-1.5 font-bold uppercase tracking-wider text-[#3B5436]">
                   <Sparkles className="w-3.5 h-3.5" />
                   <span>Discovered Clues & World State</span>
                 </div>
                 <ul className="space-y-1 text-[#4A443F]">
-                  {book.plotMemory.foreshadowedClues.length > 0 ? (
-                    book.plotMemory.foreshadowedClues.map((c, idx) => (
-                      <li key={idx} className="flex items-start gap-1.5">
-                        <span className="text-[#3B5436]">•</span>
-                        <span>{c}</span>
-                      </li>
-                    ))
+                  {book.plotMemory.foreshadowedClues.length > 0 || (book.plotMemory.worldStateChanges && book.plotMemory.worldStateChanges.length > 0) ? (
+                    <>
+                      {book.plotMemory.foreshadowedClues.map((c, idx) => (
+                        <li key={`clue-${idx}`} className="flex items-start gap-1.5">
+                          <span className="text-[#3B5436]">🔍</span>
+                          <span>{c}</span>
+                        </li>
+                      ))}
+                      {book.plotMemory.worldStateChanges?.map((w, idx) => (
+                        <li key={`world-${idx}`} className="flex items-start gap-1.5">
+                          <span className="text-[#B45F3C]">🌍</span>
+                          <span>{w}</span>
+                        </li>
+                      ))}
+                    </>
                   ) : (
                     <li className="text-[#9E968D] italic">Exploring initial territory</li>
                   )}
@@ -1700,8 +1748,9 @@ export const StoryReader: React.FC<StoryReaderProps> = ({
           </div>
         </div>
 
-        {/* Notice for placeholder or cover-duplicate images */}
+        {/* Notice for placeholder or cover-duplicate images (only if not actively loading) */}
         {(() => {
+          if (currentChapter.imageLoading) return null;
           const isCoverDuplicate = currentChapterIndex > 0 && currentChapter.imageUrl === book.coverImage;
           const isCastAvatar = book.cast?.some((c) => c.visualProfile?.photoUrl && c.visualProfile.photoUrl === currentChapter.imageUrl);
           const isPlaceholder = !currentChapter.imageUrl || isCoverDuplicate || isCastAvatar;
@@ -1728,7 +1777,7 @@ export const StoryReader: React.FC<StoryReaderProps> = ({
         })()}
 
         {/* Context-Aware Scene Illustration Card */}
-        {currentChapter.imageUrl ? (
+        {currentChapter.imageUrl && !currentChapter.imageLoading ? (
           <motion.div
             key={`img-${currentChapterIndex}`}
             initial={{ opacity: 0, rotateY: 90 }}

@@ -121,6 +121,8 @@ export interface StoryHistoryBuffer {
   recentParagraphSubjects: string[];
   keyPlotBeats: string[];
   recentSentencePhrases: string[];
+  recentOpeningPhrases?: string[];
+  activeBeatOutline?: string[];
   blockedClichés?: string[];
 }
 
@@ -131,6 +133,8 @@ export interface PlotMemory {
   foreshadowedClues: string[];
   worldStateChanges: string[];
   historyBuffer?: StoryHistoryBuffer;
+  currentObjective?: string;
+  emotionalArcStatus?: string;
 }
 
 export interface MarginNote {
@@ -161,6 +165,9 @@ export interface StoryChapter {
     newItems?: string[];
     tensionShift?: string;
     clueDiscovered?: string;
+    worldStateChanges?: string[];
+    currentObjective?: string;
+    emotionalArcStatus?: string;
   };
   createdAt: number;
 }

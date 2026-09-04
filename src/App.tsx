@@ -305,6 +305,7 @@ export default function App() {
           <StoryCreator
             characters={characters}
             onCreateBook={handleCreateBook}
+            onUpdateBook={handleUpdateBook}
             onOpenCharacterStudio={() => setCurrentView('characters')}
             preselectedCharacter={preselectedCastCharacter}
           />

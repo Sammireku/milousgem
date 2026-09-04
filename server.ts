@@ -3,6 +3,14 @@ import path from 'path';
 import fs from 'fs';
 import { createServer as createViteServer } from 'vite';
 import { GoogleGenAI, Type } from '@google/genai';
+import {
+  buildCharacterVisualAnchors,
+  getGenreWorldConcept,
+  sanitizeStoryMetaText,
+  getChapterNarrativeBeat,
+  healAndValidateStoryProse,
+  BANNED_OPENING_CLICHES,
+} from './src/utils/characterVisual';
 
 const app = express();
 const PORT = 3000;
@@ -66,14 +74,13 @@ async function callGeminiContentResilient(
     config?: any;
     systemInstruction?: string;
   },
-  primaryModel = 'gemini-2.5-flash'
+  primaryModel = 'gemini-3.8-flash'
 ) {
   const modelsToTry = [
     primaryModel,
+    'gemini-3.8-flash',
+    'gemini-flash-latest',
     'gemini-2.5-flash',
-    'gemini-1.5-flash',
-    'gemini-2.0-flash',
-    'gemini-3.7-flash',
   ].filter((m, idx, self) => Boolean(m) && self.indexOf(m) === idx);
 
   const ai = getGeminiClient();
@@ -152,28 +159,58 @@ async function callGroqFallback(messages: Array<{ role: string; content: string 
 }
 
 /**
- * Utility to extract and parse JSON from LLM text responses cleanly
+ * Utility to extract and parse JSON from LLM text responses cleanly and self-heal slight malformations
  */
 function extractJSON(text: string): any {
   if (!text) return {};
   try {
     return JSON.parse(text);
   } catch (e) {
-    // Try extracting JSON from markdown code block
+    // 1. Try extracting JSON from markdown code block
     const match = text.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
     if (match && match[1]) {
       try {
         return JSON.parse(match[1]);
-      } catch (inner) {}
+      } catch (inner) {
+        // Try cleaning trailing commas
+        const cleanedInner = match[1].replace(/,\s*([\]}])/g, '$1');
+        try {
+          return JSON.parse(cleanedInner);
+        } catch (inner2) {}
+      }
     }
-    // Try finding outer curly braces
+
+    // 2. Try finding outer curly braces
     const firstBrace = text.indexOf('{');
     const lastBrace = text.lastIndexOf('}');
     if (firstBrace !== -1 && lastBrace > firstBrace) {
+      const slice = text.slice(firstBrace, lastBrace + 1);
       try {
-        return JSON.parse(text.slice(firstBrace, lastBrace + 1));
-      } catch (inner) {}
+        return JSON.parse(slice);
+      } catch (inner) {
+        // Strip trailing commas before closing braces/brackets
+        const cleanedSlice = slice.replace(/,\s*([\]}])/g, '$1');
+        try {
+          return JSON.parse(cleanedSlice);
+        } catch (inner2) {}
+      }
     }
+
+    // 3. Try finding outer array brackets
+    const firstBracket = text.indexOf('[');
+    const lastBracket = text.lastIndexOf(']');
+    if (firstBracket !== -1 && lastBracket > firstBracket) {
+      const arraySlice = text.slice(firstBracket, lastBracket + 1);
+      try {
+        return JSON.parse(arraySlice);
+      } catch (inner) {
+        const cleanedArray = arraySlice.replace(/,\s*([\]}])/g, '$1');
+        try {
+          return JSON.parse(cleanedArray);
+        } catch (inner2) {}
+      }
+    }
+
     throw new Error('Failed to parse structured JSON from model response');
   }
 }
@@ -224,9 +261,6 @@ You are a world-class literary author, Pixar-level visual director, and master s
   * NEVER use generic magic shortcuts. Problems are solved through logic, tool use, observation, and character growth.
   * Every page MUST exhibit completely unique sentence cadences and progressive narrative momentum.
 
-- STRICT EARLY READER / KIDS MODE ANTI-PURPLE-PROSE RULES:
-${KIDS_MODE_AUTHOR_PROMPT}
-
 ================================================================================
 2. AGE-APPROPRIATE NARRATIVE ENGINE
 ================================================================================
@@ -246,15 +280,24 @@ For EVERY page, craft a context-aware illustrationPrompt engineered for stunning
 - Color Scripting & Lighting: Specify rich color palettes (e.g., golden hour amber, bioluminescent cyan, twilight indigo), raytraced sub-surface skin scattering, and atmospheric particle mist. NO text, typography, speech bubbles, or watermarks.
 
 ================================================================================
-4. OUTPUT JSON STRUCTURE PER PAGE
+4. STRICT ANTI-META & DIEGETIC WORLDBUILDING MANDATE
 ================================================================================
-- chapterNumber (integer 1 to N)
-- title (evocative, unique title for Page X)
-- summary (1 sentence scene overview)
-- content (complete unique narrative prose adhering to the Rule of 3 Beats and strict age rules)
-- illustrationPrompt (Strict format: "Art Style: Pixar 3D Render, Character Model: [Character Name with Visual Anchors], Scene Details: [Action/Expression], Environment & Lighting: [Setting & Lighting], Camera Framing: [Focal Lens & Angle]")
-- choices (2-3 branching player choices with risk levels)
-- memoryUpdate (newItems, tensionShift, clueDiscovered, worldStateChanges)
+- EMBODY THE WORLDBUILDING CONCEPT WITHOUT EVER STATING META LABELS:
+  * Understand the genre and world setting conceptually (its atmosphere, tools, architecture, environmental logic, and sensory textures) and weave it naturally into the characters' immediate surroundings and actions.
+  * ABSOLUTELY FORBIDDEN PHRASES: NEVER mention or repeat UI options, headers, or meta labels in the story prose, titles, summaries, or choices. Specifically:
+    - NEVER write "Select Story Genre & Worldbuilding" or "Select Story Genre"
+    - NEVER write "choice of Select Story Genre & Worldbuilding" or "choice of worldbuilding"
+    - NEVER write "chosen genre", "in this genre", "subgenre mashup", or "worldbuilding"
+  * The story must read like a published literary book. The characters do not know they are in a genre; they live inside their world naturally.
+  * Show the setting through physical details: solar panels, bamboo sails, cobblestones, brass dials, dewdrop bridges, etc. Show, don't tell.
+
+================================================================================
+5. STRICT CHARACTER FIDELITY IN ILLUSTRATIONS (NO RANDOM CHARACTERS)
+================================================================================
+- Every single illustrationPrompt MUST explicitly feature the created/selected cast members from CUSTOM CHARACTER SPECS.
+- NEVER invent random substitute characters, random animals, or generic faceless figures when depicting scenes where the heroes are active.
+- Always include the character's exact name and physical descriptors in illustrationPrompt (e.g., "Zula, a young girl with dark brown skin, braided buns, navy ruffled sundress and sandals, holding her handmade origami rainbow bird").
+- The action in the illustrationPrompt must directly depict the character's physical interaction with their immediate environment.
 `;
 
 /**
@@ -275,11 +318,28 @@ function generateProceduralChapter(options: {
   const { bookTitle, synopsis, genre, tone, artStyle, cast, chapterNumber, totalTargetChapters, chosenChoiceAction, targetAudience = '5-7' } = options;
   const lead = cast[0] || { name: 'Milo', titleOrRole: 'The Young Explorer', signatureItem: 'A brass compass', visualProfile: { appearanceTags: ['dark curly hair', 'yellow raincoat', 'red boots'] } };
   const companion = cast[1] || null;
-  const leadAnchors = Array.isArray(lead.appearanceTags) ? lead.appearanceTags.join(', ') : lead.visualProfile?.appearanceTags?.join(', ') || 'curly hair, cheerful jacket, boots';
-  const companionAnchors = companion ? (Array.isArray(companion.appearanceTags) ? companion.appearanceTags.join(', ') : companion.visualProfile?.appearanceTags?.join(', ') || 'striped hat, shoulder bag') : '';
+
+  const leadRawTags = [
+    ...(Array.isArray(lead.visualProfile?.appearanceTags) ? lead.visualProfile.appearanceTags : []),
+    ...(Array.isArray(lead.appearanceTags) ? lead.appearanceTags : []),
+  ].filter(Boolean);
+  const leadAnchors = leadRawTags.length > 0 ? leadRawTags.join(', ') : lead.visualProfile?.artisticStylePrompt || 'dark curly hair, yellow raincoat, red boots';
+
+  const compRawTags = companion
+    ? [
+        ...(Array.isArray(companion.visualProfile?.appearanceTags) ? companion.visualProfile.appearanceTags : []),
+        ...(Array.isArray(companion.appearanceTags) ? companion.appearanceTags : []),
+      ].filter(Boolean)
+    : [];
+  const companionAnchors = companion ? (compRawTags.length > 0 ? compRawTags.join(', ') : companion.visualProfile?.artisticStylePrompt || 'friendly smile, colorful outfit') : '';
 
   const total = Math.max(totalTargetChapters || 8, 1);
   const isFinal = chapterNumber >= total;
+
+  const genreConcept = getGenreWorldConcept(genre);
+  const envPhrase = genreConcept.naturalEnvironmentPhrase || 'wondrous sunlit';
+  const cleanSynopsis = sanitizeStoryMetaText(synopsis);
+  const cleanAction = sanitizeStoryMetaText(chosenChoiceAction || '');
 
   // Dynamic Camera Framing cycle
   const cameraAngles = [
@@ -296,7 +356,7 @@ function generateProceduralChapter(options: {
     {
       title: 'The Unexpected Discovery',
       buildContent: () =>
-        `The morning sun washed over the ${genre} horizon in warm golden amber. ${lead.name}, gripping their signature ${lead.signatureItem || 'compass'}, spotted a strange shimmer resting near the trail. ${synopsis ? `It was connected to ${synopsis.toLowerCase()}.` : 'An ancient brass key marked with unknown glyphs clicked softly as it was touched.'}\n\n` +
+        `The morning sun washed over the ${envPhrase} horizon in warm golden amber. ${lead.name}, gripping their signature ${lead.signatureItem || 'compass'}, spotted a strange shimmer resting near the trail. ${cleanSynopsis ? `It was connected to ${cleanSynopsis.toLowerCase()}.` : 'An ancient brass key marked with unknown glyphs clicked softly as it was touched.'}\n\n` +
         `"Look at this," ${lead.name} called out. ${companion ? `${companion.name} leaned closer, inspecting the intricate markings with wide eyes. "That isn't like anything in our local maps."` : 'The artifact hummed faintly, pointing toward the ridge.'}\n\n` +
         `With a surge of curiosity, ${lead.name} pocketed the discovery. The journey had officially begun.`,
       getScenePrompt: (l: any, c: any, lAnchors: string, cAnchors: string) =>
@@ -305,7 +365,7 @@ function generateProceduralChapter(options: {
     {
       title: 'Stepping Beyond the Known',
       buildContent: () =>
-        `The path led into dense ${genre} territory, where the air grew cool and scented with pine and ozone. ${chosenChoiceAction ? `Having decided to ${chosenChoiceAction.toLowerCase()}, ` : ''}${lead.name} carefully guided the way across a footbridge spanning a rushing creek.\n\n` +
+        `The path led into dense, unexplored territory, where the air grew cool and scented with pine and ozone. ${cleanAction ? `Having decided to ${cleanAction.toLowerCase()}, ` : ''}${lead.name} carefully guided the way across a footbridge spanning a rushing creek.\n\n` +
         `"Watch your step," ${lead.name} warned as mist gathered on the stones. ${companion ? `${companion.name} unhitched a braided rope from their pack to secure the trailing timber.` : 'A sudden flash of light bounced off a mossy stone ahead.'}\n\n` +
         `They pressed onward, leaving the familiar outskirts behind as the surroundings grew more mysterious.`,
       getScenePrompt: (l: any, c: any, lAnchors: string, cAnchors: string) =>
@@ -323,7 +383,7 @@ function generateProceduralChapter(options: {
     {
       title: 'The Midpoint Challenge',
       buildContent: () =>
-        `High atop the observation crag, the true scale of the journey became clear. A vast network of ${genre} structures stretched across the canyon below, but the central conduit had stopped flowing.\n\n` +
+        `High atop the observation crag, the true scale of the journey became clear. A vast network of ${envPhrase} structures stretched across the canyon below, but the central conduit had stopped flowing.\n\n` +
         `"${lead.name}, over there!" ${companion ? `${companion.name} pointed toward a giant mechanical wheel caught in tangled vines.` : `${lead.name} realized the entire valley depended on restoring this gateway.`}\n\n` +
         `Realizing that brute force wouldn't work, ${lead.name} drew upon their ${lead.signatureItem || 'journal'}, mapping out a clever plan to clear the obstruction.`,
       getScenePrompt: (l: any, c: any, lAnchors: string, cAnchors: string) =>
@@ -332,7 +392,7 @@ function generateProceduralChapter(options: {
     {
       title: 'A Test of Resourcefulness',
       buildContent: () =>
-        `Rushing water thundered down the stone chute as the team reached the lower pump house. ${chosenChoiceAction ? `By ${chosenChoiceAction.toLowerCase()}, ` : ''}${lead.name} secured a foothold near the vibrating central valve.\n\n` +
+        `Rushing water thundered down the stone chute as the team reached the lower pump house. ${cleanAction ? `By ${cleanAction.toLowerCase()}, ` : ''}${lead.name} secured a foothold near the vibrating central valve.\n\n` +
         `"Hold the line!" ${lead.name} called out over the roar. ${companion ? `${companion.name} braced the heavy lever with all their strength, giving ${lead.name} time to calibrate the gauge.` : 'Every movement required total focus and steady hands.'}\n\n` +
         `Together, they freed the primary intake, sending a fresh surge of power pulsing through the ancient conduits.`,
       getScenePrompt: (l: any, c: any, lAnchors: string, cAnchors: string) =>
@@ -380,15 +440,18 @@ function generateProceduralChapter(options: {
   const beatIndex = Math.min(chapterNumber - 1, stageBeats.length - 1);
   const currentBeat = stageBeats[beatIndex] || stageBeats[stageBeats.length - 1];
 
-  const stageTitle = `Page ${chapterNumber}: ${currentBeat.title}`;
-  const content = currentBeat.buildContent();
+  const stageTitle = sanitizeStoryMetaText(`Page ${chapterNumber}: ${currentBeat.title}`);
+  const content = sanitizeStoryMetaText(currentBeat.buildContent());
+
+  const effectiveCastForAnchors = cast && cast.length > 0 ? cast : [lead, ...(companion ? [companion] : [])];
+  const fullCharacterAnchors = buildCharacterVisualAnchors(effectiveCastForAnchors);
 
   const sceneDetail = currentBeat.getScenePrompt(lead, companion, leadAnchors, companionAnchors);
   const illustrationPrompt = injectPageContext({
     pageText: content,
     artStyle,
     rawPrompt: sceneDetail,
-    characterAnchors: leadAnchors + (companion ? `; ${companion.name}: ${companionAnchors}` : ''),
+    characterAnchors: fullCharacterAnchors,
     chapterNumber,
   });
 
@@ -422,15 +485,21 @@ function generateProceduralChapter(options: {
   return {
     chapterNumber,
     title: stageTitle,
-    summary: `Page ${chapterNumber} of ${bookTitle}: ${lead.name} experiences ${currentBeat.title}.`,
+    summary: sanitizeStoryMetaText(`Page ${chapterNumber} of ${bookTitle}: ${lead.name} experiences ${currentBeat.title}.`),
     content,
     illustrationPrompt,
-    choices,
+    choices: choices.map((c) => ({
+      ...c,
+      label: sanitizeStoryMetaText(c.label),
+      actionDescription: sanitizeStoryMetaText(c.actionDescription),
+    })),
     memoryUpdate: {
       newItems: [`Page ${chapterNumber} Milestone Token`],
       tensionShift: `${lead.name}'s story advances to Page ${chapterNumber}`,
       clueDiscovered: `Key insight on page ${chapterNumber}`,
       worldStateChanges: [`Page ${chapterNumber} completed`],
+      currentObjective: '',
+      emotionalArcStatus: '',
     },
   };
 }
@@ -1020,10 +1089,16 @@ function cleanPromptOfMetaLabels(text: string): string {
     .replace(/Visual Anchors:\s*[^.]+\./gi, '')
     .replace(/Camera Staging:\s*[^.]+\./gi, '')
     .replace(/Camera & atmosphere:\s*[^.]+\./gi, '')
+    .replace(/Character Model:\s*/gi, '')
     .replace(/Scene Details:\s*/gi, '')
     .replace(/Scene:\s*/gi, '')
+    .replace(/Environment & Lighting:\s*[^.]+\./gi, '')
     .replace(/Render Specs:\s*[^.]+\./gi, '')
     .replace(/Featuring characters:\s*[^.]+\./gi, '')
+    .replace(/choice\s+of\s+Select\s+Story\s+Genre\s+&\s+Worldbuilding/gi, '')
+    .replace(/Select\s+Story\s+Genre\s+&\s+Worldbuilding/gi, '')
+    .replace(/Select\s+Story\s+Genre/gi, '')
+    .replace(/Worldbuilding:\s*[^.]+\./gi, '')
     .replace(/Pixar 3D animated film render,?\s*/gi, '')
     .replace(/Masterpiece 3D Pixar animated film still,?\s*/gi, '')
     .replace(/sharp focus, volumetric raytracing, clean rendering, zero text, zero watermark, zero speech bubbles\.?/gi, '')
@@ -1106,23 +1181,52 @@ function injectPageContext(options: {
 }): string {
   const { pageText = '', artStyle = 'hyper_articulated_realism', rawPrompt = '', characterAnchors = '', chapterNumber = 1 } = options;
 
-  // Extract clean character names for heuristic matching
-  const charNames = characterAnchors
-    ? characterAnchors.split(';').map(s => s.split(':')[0].trim()).filter(Boolean)
+  // Extract clean character names & parsed anchor objects
+  interface ParsedAnchor {
+    name: string;
+    description: string;
+  }
+  const parsedAnchors: ParsedAnchor[] = characterAnchors
+    ? characterAnchors
+        .split(';')
+        .map((entry) => {
+          const colonIdx = entry.indexOf(':');
+          if (colonIdx === -1) return null;
+          const cleanName = entry.slice(0, colonIdx).trim();
+          const desc = entry.slice(colonIdx + 1).trim();
+          return cleanName ? { name: cleanName, description: desc } : null;
+        })
+        .filter((x): x is ParsedAnchor => Boolean(x))
     : [];
 
-  const cleanedRaw = cleanPromptOfMetaLabels(rawPrompt);
+  const charNames = parsedAnchors.map((a) => a.name);
+
+  const cleanedRaw = sanitizeStoryMetaText(cleanPromptOfMetaLabels(rawPrompt));
+  const cleanedPageText = sanitizeStoryMetaText(pageText);
 
   // Determine the core narrative action of this specific page
   let sceneAction = '';
   const isGeneric = !cleanedRaw || cleanedRaw.length < 20 || cleanedRaw.toLowerCase().includes('active on page') || cleanedRaw.toLowerCase().includes('a milestone in the journey');
   if (!isGeneric) {
     sceneAction = cleanedRaw;
-  } else if (pageText && pageText.trim().length > 20) {
-    sceneAction = extractKeyActionFromProse(pageText, charNames);
+  } else if (cleanedPageText && cleanedPageText.trim().length > 20) {
+    sceneAction = extractKeyActionFromProse(cleanedPageText, charNames);
   } else {
     sceneAction = cleanedRaw || 'Storybook character embarking on an imaginative adventure';
   }
+
+  // Identify active characters in this scene, or fallback to the primary cast members
+  const matchingAnchors = parsedAnchors.filter(
+    (a) =>
+      sceneAction.toLowerCase().includes(a.name.toLowerCase()) ||
+      cleanedPageText.toLowerCase().includes(a.name.toLowerCase())
+  );
+  const activeAnchors = matchingAnchors.length > 0 ? matchingAnchors : parsedAnchors.slice(0, 2);
+
+  // Build character specification string to put DIRECTLY at the start of the visual prompt
+  const characterSpecClause = activeAnchors
+    .map((a) => (a.description ? `${a.name} (${a.description})` : a.name))
+    .join(' alongside ');
 
   // Rotational Lens & Framing Protocol
   const lenses = [
@@ -1134,24 +1238,27 @@ function injectPageContext(options: {
   ];
   const lensStaging = lenses[(chapterNumber - 1) % lenses.length];
 
-  // Character visual anchor clause
-  const cleanAnchors = characterAnchors ? characterAnchors.replace(/;/g, ',') : '';
-  const charClause = cleanAnchors.trim() ? `Featuring ${cleanAnchors}.` : '';
+  // Return prompt with the character visual depiction placed FIRST and FOREMOST
+  if (characterSpecClause) {
+    return `Pixar 3D animated film render depicting ${characterSpecClause}. Scene action: ${sceneAction}. Camera & atmosphere: ${lensStaging}, warm volumetric studio lighting, rich colors, octane render style, sharp focus, no text, no watermark, no captions.`;
+  }
 
-  // Return a cohesive natural language prompt that diffusion models can directly interpret
-  return `${UNIFIED_PIXAR_3D_STYLE_PROMPT}. Scene: ${sceneAction}. ${charClause} Camera & atmosphere: ${lensStaging}, sharp focus, rich colors, octane render style, no text, no watermark, no captions.`;
+  return `${UNIFIED_PIXAR_3D_STYLE_PROMPT}. Scene action: ${sceneAction}. Camera & atmosphere: ${lensStaging}, sharp focus, rich colors, octane render style, no text, no watermark, no captions.`;
 }
 
 interface StoryHistoryBufferData {
   recentParagraphSubjects: string[];
   keyPlotBeats: string[];
   recentSentencePhrases: string[];
+  recentOpeningPhrases?: string[];
+  activeBeatOutline?: string[];
   blockedClichés?: string[];
 }
 
 /**
  * Story History Buffer Tracker:
- * Extracts recent paragraph subjects and key plot beats to enforce zero repetition across sessions.
+ * Extracts recent paragraph subjects, sentence phrases, and opening clause cadence
+ * to enforce zero repetition across chapters.
  */
 function updateStoryHistoryBuffer(
   existingBuffer: StoryHistoryBufferData | undefined,
@@ -1162,15 +1269,20 @@ function updateStoryHistoryBuffer(
     recentParagraphSubjects: [],
     keyPlotBeats: [],
     recentSentencePhrases: [],
-    blockedClichés: ['As the sun rose', 'A shiver ran down', 'Suddenly without warning', 'Little did they know', 'Time seemed to stop'],
+    recentOpeningPhrases: [],
+    blockedClichés: BANNED_OPENING_CLICHES,
   };
 
   if (!newChapterContent) return current;
 
+  // Extract opening sentence phrase (first 5-8 words) to prevent opening repetition
+  const firstSentence = (newChapterContent.split(/[.!?]/)[0] || '').trim();
+  const openingPhrase = firstSentence.split(/\s+/).slice(0, 8).join(' ');
+
   const paragraphs = newChapterContent.split(/\n\n+/).map(p => p.trim()).filter(p => p.length > 20);
   const newSubjects = paragraphs.slice(0, 3).map(p => {
-    const firstSentence = p.split(/[.!?]/)[0] || p;
-    return firstSentence.trim().slice(0, 100);
+    const s = p.split(/[.!?]/)[0] || p;
+    return s.trim().slice(0, 100);
   });
 
   const allSentences = newChapterContent.match(/[^.!?]+[.!?]+/g) || [];
@@ -1180,36 +1292,51 @@ function updateStoryHistoryBuffer(
     recentParagraphSubjects: Array.from(new Set([...newSubjects, ...current.recentParagraphSubjects])).slice(0, 12),
     keyPlotBeats: Array.from(new Set([chapterTitle, ...current.keyPlotBeats])).slice(0, 10),
     recentSentencePhrases: Array.from(new Set([...keyPhrases, ...current.recentSentencePhrases])).slice(0, 15),
-    blockedClichés: current.blockedClichés,
+    recentOpeningPhrases: Array.from(new Set([openingPhrase, ...(current.recentOpeningPhrases || [])])).filter(Boolean).slice(0, 8),
+    blockedClichés: Array.from(new Set([...(current.blockedClichés || []), ...BANNED_OPENING_CLICHES])),
   };
 }
 
 /**
- * Formats Story History Buffer into prompt instructions for LLMs
+ * Formats Story History Buffer into prompt instructions for LLMs,
+ * enforcing dynamic scene entry, active inventory integration, and continuity.
  */
-function formatStoryHistoryBufferPrompt(buffer: StoryHistoryBufferData | undefined): string {
-  if (!buffer || (buffer.recentParagraphSubjects.length === 0 && buffer.keyPlotBeats.length === 0)) {
-    return `STORY HISTORY BUFFER (ACTIVE SESSION TRACKER):
-- Status: Opening Page (No previous paragraph subjects recorded yet). Establish initial setting and unique hook.`;
-  }
+function formatStoryHistoryBufferPrompt(
+  buffer: StoryHistoryBufferData | undefined,
+  plotMemory?: any
+): string {
+  const inventoryItems = plotMemory?.activeInventory || [];
+  const worldStates = plotMemory?.worldStateChanges || [];
+  const tensions = plotMemory?.characterTensions || [];
+  const openingPhrases = buffer?.recentOpeningPhrases || [];
 
   return `================================================================================
 STORY HISTORY BUFFER & MANDATORY ANTI-REPETITION CONSTRAINTS
 ================================================================================
+PREVIOUS CHAPTER OPENING PHRASES (STRICTLY FORBIDDEN TO REPEAT OR COPY CADENCE):
+${openingPhrases.length > 0 ? openingPhrases.map(p => `- "${p}..."`).join('\n') : '- Opening Page (No previous openings recorded yet)'}
+
 RECENT PARAGRAPH SUBJECTS ALREADY COVERED IN THIS SESSION:
-${buffer.recentParagraphSubjects.map(s => `- "${s}"`).join('\n')}
+${buffer?.recentParagraphSubjects && buffer.recentParagraphSubjects.length > 0 ? buffer.recentParagraphSubjects.map(s => `- "${s}"`).join('\n') : '- None yet'}
 
 KEY PLOT BEATS ALREADY RESOLVED:
-${buffer.keyPlotBeats.map(b => `- ${b}`).join('\n')}
+${buffer?.keyPlotBeats && buffer.keyPlotBeats.length > 0 ? buffer.keyPlotBeats.map(b => `- ${b}`).join('\n') : '- None yet'}
 
-FORBIDDEN PHRASING & RECENT SENTENCE PATTERNS:
-${buffer.recentSentencePhrases.map(p => `- "${p}"`).join('\n')}
+FORBIDDEN CLICHÉS & STOCK OPENERS (INSTANTLY REJECT):
+${BANNED_OPENING_CLICHES.slice(0, 10).map(c => `- "${c}..."`).join('\n')}
 
-MANDATORY LLM COMPARISON STEP BEFORE OUTPUT:
-1. You MUST compare your newly generated narrative paragraphs against this Story History Buffer.
-2. IF any sentence, paragraph subject, or plot beat mirrors an item in the buffer, REJECT IT IMMEDIATELY and generate a completely distinct, divergent narrative beat.
-3. EXPLICITLY BLOCK identical sentence openings, repeated character motions (gasping, wiping brow, taking deep breaths, sighing), and redundant physical obstacles.
-4. Drive the story into UNEXPLORED territory with NEW mechanical, environmental, or emotional developments.`;
+ACTIVE CHARACTER INVENTORY (MUST INCORPORATE OR USE IN THIS SCENE):
+${inventoryItems.length > 0 ? inventoryItems.map((i: string) => `- ${i}`).join('\n') : '- Standard equipment and personal wits'}
+
+PERMANENT WORLD STATE CHANGES (MAINTAIN ABSOLUTE CONTINUITY):
+${worldStates.length > 0 ? worldStates.map((w: string) => `- ${w}`).join('\n') : '- Starting world conditions intact'}
+${tensions.length > 0 ? `CURRENT ACTIVE TENSIONS:\n${tensions.map((t: string) => `- ${t}`).join('\n')}` : ''}
+
+MANDATORY LLM ANTI-REPETITION RULES:
+1. ROTATE THE ENTRY POINT: Do NOT start with the weather, waking up, yawning, or looking out a window. Enter in media res with an immediate sensory action.
+2. If any sentence opening or paragraph subject mirrors an item in the buffer, REJECT IT IMMEDIATELY and generate an active, character-grounded perspective.
+3. Build upon the ACTIVE INVENTORY: have the characters physically interact with their carried tools or previous discoveries.
+4. Drive the narrative into UNEXPLORED territory with NEW environmental, mechanical, or emotional developments.`;
 }
 
 // Endpoint: Generate Context-Aware Non-Repetitive Story Chapter (Gemini + Groq Fallback + Procedural Fallback)
@@ -1238,6 +1365,10 @@ app.post('/api/story/generate-chapter', async (req, res) => {
     const activeHistoryBuffer = historyBuffer || plotMemory?.historyBuffer;
     const isFinalChapter = chapterNumber >= totalTargetChapters;
     const isChildrenStory = isKidsMode || targetAudience === 'kids_early' || targetAudience === 'kids_middle' || targetAudience === 'young_reader';
+    const leadName = cast[0]?.name || 'The hero';
+
+    // Calculate deterministic progressive narrative beat
+    const narrativeBeat = getChapterNarrativeBeat(chapterNumber, totalTargetChapters);
 
     const castSummary = cast
       .map(
@@ -1245,6 +1376,16 @@ app.post('/api/story/generate-chapter', async (req, res) => {
           `Character: ${c.name} (${c.titleOrRole}, designated role: ${c.role})\n- Species/Archetype: ${c.visualProfile?.speciesOrArchetype || c.speciesOrArchetype}\n- Personality: ${Array.isArray(c.personality) ? c.personality.join(', ') : c.personality}\n- Flaw / Hidden Tension: ${c.flawOrSecret}\n- Signature Item: ${c.signatureItem}\n- Speech Cadence: ${c.speechPattern}\n- Visual Prompt Reference: ${c.visualProfile?.artisticStylePrompt || ''}`
       )
       .join('\n\n');
+
+    const companionVoicesDirective = cast && cast.length > 1
+      ? `================================================================================
+CHARACTER VOICES & COMPANION COOPERATION (MANDATORY):
+================================================================================
+${cast.map((c: any) => `- ${c.name} (${c.titleOrRole}): Personality: ${Array.isArray(c.personality) ? c.personality.join(', ') : c.personality}. Speech Cadence: "${c.speechPattern}". Carries: "${c.signatureItem}".`).join('\n')}
+- RULE OF DISTINCT VOICES: Characters must speak with distinct cadences and contrasting perspectives.
+- BAN MONOLITHIC UNISON: Companions must NOT simply nod or say "Yes!" in unison. They show playful friction, unique observations, and teamwork.`
+      : `LEAD CHARACTER VOICE:
+- ${leadName}: Speech Pattern: "${cast[0]?.speechPattern || 'Thoughtful and observant'}". Carries: "${cast[0]?.signatureItem || 'a treasured token'}".`;
 
     let audienceInstructions = '';
     if (isChildrenStory) {
@@ -1270,17 +1411,24 @@ ${KIDS_MODE_AUTHOR_PROMPT}
 `;
     }
 
-    const historyBufferPromptSection = formatStoryHistoryBufferPrompt(activeHistoryBuffer);
+    const isEarlyKids = isChildrenStory || targetAudience === 'kids_early' || targetAudience === 'kids_preschool' || targetAudience === '2-4' || targetAudience === '5-7';
+    const isMiddleGrade = targetAudience === 'kids_middle' || targetAudience === '8-10';
+    const targetWordCount = isEarlyKids ? '120-220 words' : isMiddleGrade ? '220-350 words' : '300-450 words';
+    const targetParagraphs = isEarlyKids ? '2-3 short, accessible paragraphs' : '3-4 captivating paragraphs';
+
+    const historyBufferPromptSection = formatStoryHistoryBufferPrompt(activeHistoryBuffer, plotMemory);
 
     const systemInstruction = `${MASTER_STORY_SYSTEM_PROMPT}
 
 ${historyBufferPromptSection}
 
-CRITICAL ANTI-REPETITION MANDATES:
-1. NEVER use generic clichés ("Little did they know", "A shiver ran down their spine", "Suddenly without warning", "Time seemed to stop").
-2. Fresh pacing for Chapter ${chapterNumber} of ${totalTargetChapters}.
-3. Character voice fidelity for cast members (${cast.map((c: any) => c.name).join(', ') || 'cast'}).
-4. Write rich, captivating prose formatted in 3-4 distinct paragraphs.
+${companionVoicesDirective}
+
+CRITICAL ANTI-REPETITION & NARRATIVE ARC MANDATES:
+1. STRICTLY FORBIDDEN CLICHÉS: Never use "${BANNED_OPENING_CLICHES.slice(0, 6).join('", "')}".
+2. ROTATE OPENING CLAUSE: Never start this chapter with a template or sentence pattern identical to previous chapters.
+3. ADHERE TO THE CHAPTER BEAT: Focus narrative action on the assigned beat objective ("${narrativeBeat.beatName}") without jumping ahead or stalling.
+4. PROSE FLOW: Write ${targetParagraphs} with active verbs and natural dialogue (${targetWordCount}).
 ${audienceInstructions}`;
 
     const userPrompt = `Generate Chapter ${chapterNumber} of ${totalTargetChapters} for the book:
@@ -1290,6 +1438,14 @@ Tone: ${tone}
 Target Age Range: ${targetAudience}
 Art Style Choice: ${artStyle}
 Overarching Story Premise: ${synopsis}
+
+================================================================================
+NARRATIVE ARC BEAT ASSIGNMENT (CHAPTER ${chapterNumber} OF ${totalTargetChapters})
+================================================================================
+Stage: ${narrativeBeat.stageType.toUpperCase()} - "${narrativeBeat.beatName}"
+Narrative Objective: ${narrativeBeat.narrativeObjective}
+Strict Boundary: ${narrativeBeat.forbiddenAction}
+Sensory Entry Point Style: ${narrativeBeat.sensoryEntryStyle}
 
 CUSTOM CHARACTER SPECS (Integrate all selected characters dynamically with Visual Anchors):
 ${castSummary || 'Protagonist embarking on the journey'}
@@ -1304,8 +1460,8 @@ ${customAuthorDirection ? `Special author prompt: "${customAuthorDirection}"` : 
 Provide:
 1. Chapter title (evocative and unique)
 2. Chapter summary (1-2 sentences)
-3. Chapter prose content (complete unique narrative prose for this page)
-4. illustrationPrompt: A vivid visual description (40-60 words) capturing the SINGLE MOST DRAMATIC ACTION of THIS specific chapter's prose. Explicitly describe: which characters are present, their clothing/appearance, their physical pose and specific interaction with items or environment (e.g., 'Milo leans over a mossy stone pedestal to turn a glowing copper dial while Oliver the owl hovers overhead clutching a brass lantern'), the immediate setting, and lighting. Do NOT use meta-tags or prefixes like 'Scene:' or 'Style:'.
+3. Chapter prose content (complete unique narrative prose for this page, fulfilling the beat objective)
+4. illustrationPrompt: A vivid visual description (40-60 words) capturing the SINGLE MOST DRAMATIC ACTION of THIS specific chapter's prose. Explicitly describe: which characters are present, their clothing/appearance, their physical pose and specific interaction with items or environment (e.g., '${leadName} reaches out to steady the trembling crystal sphere while sparks illuminate the chamber'), the immediate setting, and lighting. Do NOT use meta-tags or prefixes like 'Scene:' or 'Style:'.
 5. ${isFinalChapter ? '1-2 concluding reflections' : '2-3 diverse, branching choices for the reader'}
 6. Memory updates to ensure non-repetition in future chapters.`;
 
@@ -1321,7 +1477,7 @@ Provide:
             properties: {
               title: { type: Type.STRING, description: 'Evocative chapter title' },
               summary: { type: Type.STRING, description: '1-2 sentence synopsis of this chapter' },
-              content: { type: Type.STRING, description: 'The complete chapter prose (350-550 words)' },
+              content: { type: Type.STRING, description: `The complete chapter prose (${targetWordCount})` },
               illustrationPrompt: {
                 type: Type.STRING,
                 description: 'Vivid, direct visual description of the single most dramatic action of this page, naming characters, physical action, and setting',
@@ -1356,9 +1512,29 @@ Provide:
             required: ['title', 'summary', 'content', 'illustrationPrompt', 'choices'],
           },
         },
-      }, 'gemini-2.5-flash');
+      }, 'gemini-3.8-flash');
 
       const parsed = extractJSON(response.text || '{}');
+      const fullCharacterAnchors = buildCharacterVisualAnchors(cast);
+
+      parsed.title = sanitizeStoryMetaText(parsed.title || `Chapter ${chapterNumber}`);
+      parsed.summary = sanitizeStoryMetaText(parsed.summary || '');
+      parsed.content = healAndValidateStoryProse(parsed.content || '', leadName);
+      if (Array.isArray(parsed.choices)) {
+        parsed.choices = parsed.choices.map((c: any, idx: number) => ({
+          id: c.id || `choice_${chapterNumber}_${idx + 1}`,
+          label: sanitizeStoryMetaText(c.label || `Choice ${idx + 1}`),
+          actionDescription: sanitizeStoryMetaText(c.actionDescription || `${leadName} takes action`),
+          consequenceHint: sanitizeStoryMetaText(c.consequenceHint || 'A new discovery unfolds'),
+          riskLevel: c.riskLevel || (idx === 0 ? 'balanced' : idx === 1 ? 'safe' : 'perilous'),
+        }));
+      }
+
+      if (!parsed.memoryUpdate) {
+        parsed.memoryUpdate = {};
+      }
+      parsed.memoryUpdate.currentObjective = narrativeBeat.narrativeObjective;
+      parsed.memoryUpdate.emotionalArcStatus = narrativeBeat.stageType;
 
       // Update Story History Buffer
       const updatedHistoryBuffer = updateStoryHistoryBuffer(activeHistoryBuffer, parsed.content || '', parsed.title || '');
@@ -1368,7 +1544,7 @@ Provide:
         pageText: parsed.content,
         artStyle,
         rawPrompt: parsed.illustrationPrompt,
-        characterAnchors: cast.map((c: any) => `${c.name}: ${c.visualProfile?.artisticStylePrompt || c.appearanceTags?.join(', ')}`).join('; '),
+        characterAnchors: fullCharacterAnchors,
         chapterNumber,
       });
 
@@ -1383,6 +1559,8 @@ Provide:
     } catch (geminiError: any) {
       console.warn('Gemini story generation failed, attempting Groq fallback:', geminiError?.message);
 
+      const fullCharacterAnchors = buildCharacterVisualAnchors(cast);
+
       // Groq Fallback
       if (process.env.GROQ_API_KEY) {
         try {
@@ -1392,12 +1570,31 @@ Provide:
           ], true);
 
           const parsed = extractJSON(groqText);
+          parsed.title = sanitizeStoryMetaText(parsed.title || `Chapter ${chapterNumber}`);
+          parsed.summary = sanitizeStoryMetaText(parsed.summary || '');
+          parsed.content = healAndValidateStoryProse(parsed.content || '', leadName);
+          if (Array.isArray(parsed.choices)) {
+            parsed.choices = parsed.choices.map((c: any, idx: number) => ({
+              id: c.id || `choice_${chapterNumber}_${idx + 1}`,
+              label: sanitizeStoryMetaText(c.label || `Choice ${idx + 1}`),
+              actionDescription: sanitizeStoryMetaText(c.actionDescription || `${leadName} takes action`),
+              consequenceHint: sanitizeStoryMetaText(c.consequenceHint || 'A new discovery unfolds'),
+              riskLevel: c.riskLevel || (idx === 0 ? 'balanced' : idx === 1 ? 'safe' : 'perilous'),
+            }));
+          }
+
+          if (!parsed.memoryUpdate) {
+            parsed.memoryUpdate = {};
+          }
+          parsed.memoryUpdate.currentObjective = narrativeBeat.narrativeObjective;
+          parsed.memoryUpdate.emotionalArcStatus = narrativeBeat.stageType;
+
           const updatedHistoryBuffer = updateStoryHistoryBuffer(activeHistoryBuffer, parsed.content || '', parsed.title || '');
           parsed.illustrationPrompt = injectPageContext({
             pageText: parsed.content,
             artStyle,
             rawPrompt: parsed.illustrationPrompt,
-            characterAnchors: cast.map((c: any) => `${c.name}: ${c.visualProfile?.artisticStylePrompt || c.appearanceTags?.join(', ')}`).join('; '),
+            characterAnchors: fullCharacterAnchors,
             chapterNumber,
           });
 
@@ -1420,12 +1617,18 @@ Provide:
         chosenChoiceAction,
       });
 
+      proceduralChapter.content = healAndValidateStoryProse(proceduralChapter.content, leadName);
+      if (proceduralChapter.memoryUpdate) {
+        proceduralChapter.memoryUpdate.currentObjective = narrativeBeat.narrativeObjective;
+        proceduralChapter.memoryUpdate.emotionalArcStatus = narrativeBeat.stageType;
+      }
+
       const updatedHistoryBuffer = updateStoryHistoryBuffer(activeHistoryBuffer, proceduralChapter.content, proceduralChapter.title);
       proceduralChapter.illustrationPrompt = injectPageContext({
         pageText: proceduralChapter.content,
         artStyle,
         rawPrompt: proceduralChapter.illustrationPrompt,
-        characterAnchors: cast.map((c: any) => `${c.name}: ${c.appearanceTags?.join(', ')}`).join('; '),
+        characterAnchors: fullCharacterAnchors,
         chapterNumber,
       });
 
@@ -1459,6 +1662,16 @@ app.post('/api/story/generate-full-book', async (req, res) => {
       : Math.min(Math.max(totalTargetChapters || 8, 3), 16);
 
     const isChildrenStory = isKidsMode || targetAudience === 'kids_early' || targetAudience === 'kids_middle' || targetAudience === 'young_reader' || targetAudience === 'kids_preschool';
+    const leadName = cast[0]?.name || 'The hero';
+
+    // Generate comprehensive two-pass architectural beat-sheet across all pages
+    const beatOutlines = Array.from({ length: pageCount }, (_, i) => {
+      const b = getChapterNarrativeBeat(i + 1, pageCount);
+      return `Page ${i + 1} [Stage: ${b.stageType.toUpperCase()} - "${b.beatName}"]:
+- Narrative Goal: ${b.narrativeObjective}
+- Sensory Entry Style: ${b.sensoryEntryStyle}
+- Strict Boundary: ${b.forbiddenAction}`;
+    }).join('\n\n');
 
     const castSummary = cast
       .map(
@@ -1466,6 +1679,16 @@ app.post('/api/story/generate-full-book', async (req, res) => {
           `Character: ${c.name} (${c.titleOrRole}, role: ${c.role})\n- Species/Archetype: ${c.visualProfile?.speciesOrArchetype || c.speciesOrArchetype}\n- Personality: ${Array.isArray(c.personality) ? c.personality.join(', ') : c.personality}\n- Flaw / Hidden Tension: ${c.flawOrSecret}\n- Signature Item: ${c.signatureItem}\n- Visual Prompt Reference: ${c.visualProfile?.artisticStylePrompt || ''}`
       )
       .join('\n\n');
+
+    const companionVoicesDirective = cast && cast.length > 1
+      ? `================================================================================
+CHARACTER VOICES & COMPANION COOPERATION (MANDATORY):
+================================================================================
+${cast.map((c: any) => `- ${c.name} (${c.titleOrRole}): Personality: ${Array.isArray(c.personality) ? c.personality.join(', ') : c.personality}. Speech Cadence: "${c.speechPattern}". Carries: "${c.signatureItem}".`).join('\n')}
+- RULE OF DISTINCT VOICES: Characters must speak with distinct cadences and contrasting perspectives.
+- BAN MONOLITHIC UNISON: Companions must NOT simply nod or say "Yes!" in unison. They show playful friction, unique observations, and teamwork.`
+      : `LEAD CHARACTER VOICE:
+- ${leadName}: Speech Pattern: "${cast[0]?.speechPattern || 'Thoughtful and observant'}". Carries: "${cast[0]?.signatureItem || 'a treasured token'}".`;
 
     let audienceInstructions = '';
     if (isChildrenStory) {
@@ -1490,18 +1713,28 @@ ${KIDS_MODE_AUTHOR_PROMPT}
 `;
     }
 
+    const isEarlyKids = isChildrenStory || targetAudience === 'kids_early' || targetAudience === 'kids_preschool' || targetAudience === '2-4' || targetAudience === '5-7';
+    const isMiddleGrade = targetAudience === 'kids_middle' || targetAudience === '8-10';
+    const perPageWordCount = isEarlyKids ? '100-180 words in 2 approachable paragraphs' : isMiddleGrade ? '180-280 words in 3 paragraphs' : '250-400 words in 3-4 paragraphs';
+
     const systemInstruction = `${MASTER_STORY_SYSTEM_PROMPT}
 
 You are generating a COMPLETE ${pageCount}-page illustrated storybook titled "${bookTitle}".
+
+================================================================================
+TWO-PASS ARCHITECTURAL BEAT-SHEET FOR THIS ${pageCount}-PAGE BOOK:
+================================================================================
+${beatOutlines}
+
+${companionVoicesDirective}
+
 CRITICAL DIRECTIVES FOR COMPLETE BOOK GENERATION:
-- Structural Progression Across ${pageCount} Pages:
-  Stage 1 (Page 1..${Math.ceil(pageCount/4)}): Inciting disruption to status quo.
-  Stage 2 (Page ${Math.ceil(pageCount/4)+1}..${Math.ceil(pageCount/2)}): Escalating physical or logistical obstacles.
-  Stage 3 (Page ${Math.ceil(pageCount/2)+1}..${Math.ceil(3*pageCount/4)}): Midpoint realization or strategy shift.
-  Stage 4 (Page ${Math.ceil(3*pageCount/4)+1}..${pageCount-1}): Climax requiring character growth or clever resourcefulness.
-  Stage 5 (Page ${pageCount}): Satisfying resolution (NO moralizing summary sentences at the end).
-- ABSOLUTE NON-REPETITION: Every page MUST have distinct, unique narrative text advancing the plot. NEVER repeat identical sentence templates or filler paragraphs.
-- ILLUSTRATION PROMPT PROTOCOL: For each chapter, illustrationPrompt MUST be a direct, vivid 40-60 word scene description of the SINGLE KEY DRAMATIC EVENT taking place on THAT page. Explicitly describe which characters are doing what physical action, what objects they are interacting with, the immediate environment, and the lighting. Never write generic labels, meta tags, or repeated phrases.
+1. PROGRESSIVE BEAT ENFORCEMENT: Each page MUST strictly fulfill the assigned Narrative Goal for that page number.
+2. ABSOLUTE NON-REPETITION: Every page MUST have distinct, unique narrative text advancing the plot. NEVER repeat opening sentence patterns, clichés, or filler paragraphs.
+3. FORBIDDEN OPENING CLICHÉS: Never start any page with: "${BANNED_OPENING_CLICHES.slice(0, 8).join('", "')}".
+4. ITEM & CLUE CONTINUITY: Artifacts or discoveries made on early pages must be referenced and utilized by the characters on later pages.
+5. ILLUSTRATION PROMPT PROTOCOL: For each chapter, illustrationPrompt MUST be a direct, vivid 40-60 word scene description of the SINGLE KEY DRAMATIC ACTION taking place on THAT page. Explicitly describe which characters are doing what physical action, what objects they are interacting with, the immediate environment, and the lighting. Never write generic labels, meta tags, or repeated phrases.
+6. PAGE PROSE LENGTH: Target ${perPageWordCount} per page to maintain energetic narrative momentum and prevent dragged-out passages.
 `;
 
     try {
@@ -1537,7 +1770,7 @@ Generate an array of ${pageCount} chapters representing the complete 5-stage sto
                     chapterNumber: { type: Type.INTEGER },
                     title: { type: Type.STRING },
                     summary: { type: Type.STRING },
-                    content: { type: Type.STRING },
+                    content: { type: Type.STRING, description: `The complete chapter prose (${perPageWordCount})` },
                     illustrationPrompt: {
                       type: Type.STRING,
                       description: 'Direct, vivid 40-60 word scene description of the single key dramatic action on this page',
@@ -1550,15 +1783,25 @@ Generate an array of ${pageCount} chapters representing the complete 5-stage sto
             required: ['chapters'],
           },
         },
-      }, 'gemini-2.5-flash');
+      }, 'gemini-3.8-flash');
 
       const parsed = extractJSON(response.text || '{}');
       const chapters = Array.isArray(parsed.chapters) && parsed.chapters.length > 0
         ? parsed.chapters
         : [];
 
+      const fullCharacterAnchors = buildCharacterVisualAnchors(cast);
+
       if (chapters.length > 0) {
-        const uniqueChapters = ensureUniqueChapterContents(chapters, {
+        const validatedChapters = chapters.map((ch: any, idx: number) => ({
+          ...ch,
+          chapterNumber: ch.chapterNumber || idx + 1,
+          title: sanitizeStoryMetaText(ch.title || `Page ${idx + 1}`),
+          summary: sanitizeStoryMetaText(ch.summary || ''),
+          content: healAndValidateStoryProse(ch.content || '', leadName),
+        }));
+
+        const uniqueChapters = ensureUniqueChapterContents(validatedChapters, {
           bookTitle,
           synopsis,
           genre,
@@ -1574,22 +1817,88 @@ Generate an array of ${pageCount} chapters representing the complete 5-stage sto
             pageText: ch.content,
             artStyle,
             rawPrompt: ch.illustrationPrompt,
-            characterAnchors: cast.map((c: any) => `${c.name}: ${c.visualProfile?.artisticStylePrompt || c.appearanceTags?.join(', ')}`).join('; '),
+            characterAnchors: fullCharacterAnchors,
             chapterNumber: idx + 1,
           });
-          return { ...ch, illustrationPrompt: injectedPrompt };
+          return {
+            ...ch,
+            title: sanitizeStoryMetaText(ch.title || `Page ${idx + 1}`),
+            summary: sanitizeStoryMetaText(ch.summary || ''),
+            content: healAndValidateStoryProse(ch.content || '', leadName),
+            illustrationPrompt: injectedPrompt,
+          };
         });
 
         return res.json({ success: true, chapters: contextInjectedChapters, provider: 'gemini' });
       }
     } catch (llmErr) {
-      console.warn('Full book LLM generation note, synthesizing non-repetitive procedural chapters:', llmErr);
+      console.warn('Full book Gemini generation note, attempting Groq fallback or procedural synthesis:', llmErr);
+    }
+
+    const fullCharacterAnchors = buildCharacterVisualAnchors(cast);
+
+    // Groq Fallback for Full Book
+    if (process.env.GROQ_API_KEY) {
+      try {
+        const groqText = await callGroqFallback([
+          {
+            role: 'system',
+            content: `${systemInstruction}\nYou must reply strictly with a JSON object containing: chapters (an array of ${pageCount} objects each with chapterNumber, title, summary, content, and illustrationPrompt).`,
+          },
+          {
+            role: 'user',
+            content: `Create all ${pageCount} chapters of "${bookTitle}" with non-repetitive prose on every page according to the two-pass beat sheet.`,
+          },
+        ], true);
+
+        const parsed = extractJSON(groqText);
+        if (Array.isArray(parsed.chapters) && parsed.chapters.length > 0) {
+          const validatedGroq = parsed.chapters.map((ch: any, idx: number) => ({
+            ...ch,
+            chapterNumber: ch.chapterNumber || idx + 1,
+            title: sanitizeStoryMetaText(ch.title || `Page ${idx + 1}`),
+            summary: sanitizeStoryMetaText(ch.summary || ''),
+            content: healAndValidateStoryProse(ch.content || '', leadName),
+          }));
+
+          const uniqueGroq = ensureUniqueChapterContents(validatedGroq, {
+            bookTitle,
+            synopsis,
+            genre,
+            tone,
+            artStyle,
+            cast,
+            targetAudience,
+          });
+
+          const contextInjectedGroq = uniqueGroq.map((ch: any, idx: number) => {
+            const injectedPrompt = injectPageContext({
+              pageText: ch.content,
+              artStyle,
+              rawPrompt: ch.illustrationPrompt,
+              characterAnchors: fullCharacterAnchors,
+              chapterNumber: idx + 1,
+            });
+            return {
+              ...ch,
+              title: sanitizeStoryMetaText(ch.title || `Page ${idx + 1}`),
+              summary: sanitizeStoryMetaText(ch.summary || ''),
+              content: healAndValidateStoryProse(ch.content || '', leadName),
+              illustrationPrompt: injectedPrompt,
+            };
+          });
+
+          return res.json({ success: true, chapters: contextInjectedGroq, provider: 'groq-full-book' });
+        }
+      } catch (groqErr) {
+        console.warn('Groq full-book fallback failed, synthesizing procedural chapters:', groqErr);
+      }
     }
 
     // High-quality procedural fallback for full book (guarantees EVERY page is unique!)
     const proceduralChapters = Array.from({ length: pageCount }).map((_, idx) => {
       const chNum = idx + 1;
-      return generateProceduralChapter({
+      const ch = generateProceduralChapter({
         bookTitle,
         synopsis,
         genre,
@@ -1600,6 +1909,10 @@ Generate an array of ${pageCount} chapters representing the complete 5-stage sto
         totalTargetChapters: pageCount,
         targetAudience,
       });
+      return {
+        ...ch,
+        content: healAndValidateStoryProse(ch.content, leadName),
+      };
     });
 
     const uniqueProcedural = ensureUniqueChapterContents(proceduralChapters, {
@@ -1617,10 +1930,16 @@ Generate an array of ${pageCount} chapters representing the complete 5-stage sto
         pageText: ch.content,
         artStyle,
         rawPrompt: ch.illustrationPrompt,
-        characterAnchors: cast.map((c: any) => `${c.name}: ${c.appearanceTags?.join(', ')}`).join('; '),
+        characterAnchors: fullCharacterAnchors,
         chapterNumber: idx + 1,
       });
-      return { ...ch, illustrationPrompt: injectedPrompt };
+      return {
+        ...ch,
+        title: sanitizeStoryMetaText(ch.title || `Page ${idx + 1}`),
+        summary: sanitizeStoryMetaText(ch.summary || ''),
+        content: healAndValidateStoryProse(ch.content || '', leadName),
+        illustrationPrompt: injectedPrompt,
+      };
     });
 
     return res.json({ success: true, chapters: contextInjectedProcedural, provider: 'procedural-full-book' });
