@@ -1340,24 +1340,52 @@ function injectPageContext(options: {
   const cleanedRaw = sanitizeStoryMetaText(cleanPromptOfMetaLabels(rawPrompt));
   const cleanedPageText = sanitizeStoryMetaText(pageText);
 
-  // Determine the core narrative action of this specific page
-  let sceneAction = '';
-  const isGeneric = !cleanedRaw || cleanedRaw.length < 20 || cleanedRaw.toLowerCase().includes('active on page') || cleanedRaw.toLowerCase().includes('a milestone in the journey');
-  if (!isGeneric) {
-    sceneAction = cleanedRaw;
-  } else if (cleanedPageText && cleanedPageText.trim().length > 20) {
-    sceneAction = extractKeyActionFromProse(cleanedPageText, charNames);
-  } else {
-    sceneAction = cleanedRaw || 'Storybook character embarking on an imaginative adventure';
+  // Extract location / scene setting if present in rawPrompt or prose
+  let locationClause = '';
+  const lowerRaw = cleanedRaw.toLowerCase();
+  
+  if (
+    lowerRaw.startsWith('in ') ||
+    lowerRaw.startsWith('at ') ||
+    lowerRaw.startsWith('on ') ||
+    lowerRaw.includes(' garden') ||
+    lowerRaw.includes(' field') ||
+    lowerRaw.includes(' meadow') ||
+    lowerRaw.includes(' forest') ||
+    lowerRaw.includes(' room') ||
+    lowerRaw.includes(' treehouse') ||
+    lowerRaw.includes(' riverbank') ||
+    lowerRaw.includes(' coastline') ||
+    lowerRaw.includes(' sanctuary') ||
+    lowerRaw.includes(' landscape') ||
+    lowerRaw.includes(' setting')
+  ) {
+    locationClause = cleanedRaw;
   }
 
-  // Identify active characters in this scene, or fallback to the primary cast members
+  // Determine the core narrative action of this specific page
+  let sceneAction = '';
+  const isGenericRaw = !cleanedRaw || cleanedRaw.length < 15 || lowerRaw.includes('active on page') || lowerRaw.includes('a milestone in the journey');
+
+  if (cleanedPageText && cleanedPageText.trim().length > 20) {
+    const extractedAction = extractKeyActionFromProse(cleanedPageText, charNames);
+    if (extractedAction) {
+      sceneAction = extractedAction;
+    }
+  }
+
+  if (!sceneAction) {
+    sceneAction = isGenericRaw ? 'exploring and taking action in a storybook setting' : cleanedRaw;
+  }
+
+  // Identify active characters in this scene, or fallback to all parsed anchors
   const matchingAnchors = parsedAnchors.filter(
     (a) =>
       sceneAction.toLowerCase().includes(a.name.toLowerCase()) ||
-      cleanedPageText.toLowerCase().includes(a.name.toLowerCase())
+      cleanedPageText.toLowerCase().includes(a.name.toLowerCase()) ||
+      lowerRaw.includes(a.name.toLowerCase())
   );
-  const activeAnchors = matchingAnchors.length > 0 ? matchingAnchors : parsedAnchors.slice(0, 2);
+  const activeAnchors = matchingAnchors.length > 0 ? matchingAnchors : parsedAnchors;
 
   // Build character specification string to put DIRECTLY at the start of the visual prompt
   const characterSpecClause = activeAnchors
@@ -1374,12 +1402,22 @@ function injectPageContext(options: {
   ];
   const lensStaging = lenses[(chapterNumber - 1) % lenses.length];
 
-  // Return prompt with the character visual depiction placed FIRST and FOREMOST
-  if (characterSpecClause) {
-    return `Pixar 3D animated film render depicting ${characterSpecClause}. Scene action: ${sceneAction}. Camera & atmosphere: ${lensStaging}, warm volumetric studio lighting, rich colors, octane render style, sharp focus, no text, no watermark, no captions.`;
+  // Compose clean scene context combining action and location
+  let sceneContextParts: string[] = [];
+  if (sceneAction) sceneContextParts.push(`Action: ${sceneAction}`);
+  if (locationClause && !sceneAction.toLowerCase().includes(locationClause.toLowerCase())) {
+    sceneContextParts.push(`Setting: ${locationClause}`);
+  } else if (!locationClause && cleanedRaw && cleanedRaw !== sceneAction && cleanedRaw.length > 5) {
+    sceneContextParts.push(`Setting: ${cleanedRaw}`);
   }
 
-  return `${UNIFIED_PIXAR_3D_STYLE_PROMPT}. Scene action: ${sceneAction}. Camera & atmosphere: ${lensStaging}, sharp focus, rich colors, octane render style, no text, no watermark, no captions.`;
+  const sceneContext = sceneContextParts.join('. ');
+
+  if (characterSpecClause) {
+    return `Pixar 3D animated film render depicting ${characterSpecClause}. ${sceneContext}. Camera & atmosphere: ${lensStaging}, warm volumetric studio lighting, rich vibrant colors, octane render style, sharp focus, no text, no watermark, no captions.`;
+  }
+
+  return `Pixar 3D animated film render depicting ${sceneContext || 'an imaginative storybook scene'}. Camera & atmosphere: ${lensStaging}, warm volumetric studio lighting, rich vibrant colors, octane render style, sharp focus, no text, no watermark, no captions.`;
 }
 
 interface StoryHistoryBufferData {
@@ -2432,13 +2470,18 @@ app.post('/api/story/generate-illustration', async (req, res) => {
 // Endpoint: Image Studio - Create & Edit Images from text prompts (with Cloudflare & Hugging Face support)
 app.post('/api/images/generate', async (req, res) => {
   try {
-    const { prompt, style = 'cinematic_realism', aspectRatio = '1:1', model = 'flux', count = 1 } = req.body;
-    if (!prompt) return res.status(400).json({ error: 'Prompt is required' });
+    const { prompt, style = 'hyper_articulated_realism', aspectRatio = '1:1', model = 'flux', count = 1, characterAnchors = '', storyText = '' } = req.body;
+    if (!prompt && !storyText) return res.status(400).json({ error: 'Prompt or storyText is required' });
 
     const width = aspectRatio === '16:9' ? 1024 : aspectRatio === '9:16' ? 576 : 800;
     const height = aspectRatio === '16:9' ? 576 : aspectRatio === '9:16' ? 1024 : 800;
 
-    const fullPrompt = `${UNIFIED_PIXAR_3D_STYLE_PROMPT}. Scene: ${prompt}. Camera & atmosphere: cinematic studio lighting, sharp focus, clean rendering, no text, no watermark, no captions.`;
+    const fullPrompt = injectPageContext({
+      pageText: storyText,
+      artStyle: style,
+      rawPrompt: prompt,
+      characterAnchors,
+    });
 
     // Try primary high-tier generation for the first image
     const primaryResult = await generateImageMultiTier(fullPrompt, {

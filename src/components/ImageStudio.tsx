@@ -14,9 +14,11 @@ import {
   Copy,
   Maximize2,
   Grid,
+  Users,
 } from 'lucide-react';
 import { Character, StoryBook, StoryArtStyle } from '../types';
 import { compressImageFile, compressImageDataUrl, formatBytes, CompressionResult } from '../utils/imageCompression';
+import { buildCharacterVisualAnchors } from '../utils/characterVisual';
 
 interface ImageStudioProps {
   characters: Character[];
@@ -38,7 +40,10 @@ export const ImageStudio: React.FC<ImageStudioProps> = ({
   const [activeTab, setActiveTab] = useState<'create' | 'edit'>('create');
 
   // Create Mode States
-  const [createPrompt, setCreatePrompt] = useState('An adorable explorer character discovering a secret enchanted bioluminescent greenhouse');
+  const [createPrompt, setCreatePrompt] = useState('in a rose field garden');
+  const [selectedCharacterIds, setSelectedCharacterIds] = useState<string[]>(
+    characters.length > 0 ? [characters[0].id] : []
+  );
   const [selectedStyle, setSelectedStyle] = useState<StoryArtStyle>('hyper_articulated_realism' as any);
   const [aspectRatio, setAspectRatio] = useState<'1:1' | '16:9' | '9:16'>('16:9');
   const [batchCount, setBatchCount] = useState<number>(2);
@@ -77,17 +82,19 @@ export const ImageStudio: React.FC<ImageStudioProps> = ({
     setFeedbackMsg(null);
 
     const styleDef = ART_STYLE_PRESETS.find((s) => s.id === selectedStyle);
-    const fullPrompt = `${createPrompt}, ${styleDef?.promptSnippet || ''}`;
+    const selectedCast = characters.filter((c) => selectedCharacterIds.includes(c.id));
+    const characterAnchors = selectedCast.length > 0 ? buildCharacterVisualAnchors(selectedCast) : '';
 
     try {
       const response = await fetch('/api/images/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          prompt: fullPrompt,
+          prompt: createPrompt,
           style: selectedStyle,
           aspectRatio,
           count: batchCount,
+          characterAnchors,
         }),
       });
 
@@ -103,12 +110,13 @@ export const ImageStudio: React.FC<ImageStudioProps> = ({
       // Client-side instant fallback via Pollinations AI
       const width = aspectRatio === '16:9' ? 1024 : aspectRatio === '9:16' ? 576 : 800;
       const height = aspectRatio === '16:9' ? 576 : aspectRatio === '9:16' ? 1024 : 800;
+      const fallbackPrompt = `${createPrompt}${characterAnchors ? `, featuring ${characterAnchors}` : ''}`;
       const fallbackList = Array.from({ length: batchCount }).map((_, i) => {
         const seed = Math.floor(Math.random() * 999999) + i * 200;
         return {
           id: `poll_${Date.now()}_${i}`,
-          url: `https://image.pollinations.ai/prompt/${encodeURIComponent(fullPrompt)}?width=${width}&height=${height}&seed=${seed}&model=flux&nologo=true`,
-          prompt: fullPrompt,
+          url: `https://image.pollinations.ai/prompt/${encodeURIComponent(fallbackPrompt)}?width=${width}&height=${height}&seed=${seed}&model=flux&nologo=true`,
+          prompt: fallbackPrompt,
         };
       });
       setGeneratedImages(fallbackList);
@@ -249,16 +257,59 @@ export const ImageStudio: React.FC<ImageStudioProps> = ({
             <div className="bg-[#FDFCF9] border border-[#DFD8CA] rounded-2xl p-5 shadow-xs space-y-4">
               <div>
                 <label className="block text-xs font-medium text-[#4A443F] mb-1.5">
-                  Text Prompt
+                  Location / Scene Description
                 </label>
                 <textarea
-                  rows={3}
+                  rows={2}
                   value={createPrompt}
                   onChange={(e) => setCreatePrompt(e.target.value)}
-                  placeholder="Describe your scene, subject, atmosphere, and lighting..."
+                  placeholder="E.g. in a rose field garden, at the tranquil riverbank, inside a cozy treehouse..."
                   className="w-full px-3.5 py-2.5 rounded-xl bg-white border border-[#DCD5C9] text-sm text-[#3A342F] focus:outline-none focus:border-[#5B6B56] shadow-xs leading-relaxed"
                 />
               </div>
+
+              {/* Character Selection for Image Context */}
+              {characters && characters.length > 0 && (
+                <div>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="text-xs font-medium text-[#4A443F] flex items-center gap-1.5">
+                      <Users className="w-3.5 h-3.5 text-[#5B6B56]" />
+                      <span>Selected Cast Character(s)</span>
+                    </label>
+                    <span className="text-[11px] text-[#78716A]">Injects visual appearance & clothing</span>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {characters.map((c) => {
+                      const isSelected = selectedCharacterIds.includes(c.id);
+                      return (
+                        <button
+                          key={c.id}
+                          type="button"
+                          onClick={() => {
+                            setSelectedCharacterIds((prev) =>
+                              isSelected ? prev.filter((id) => id !== c.id) : [...prev, c.id]
+                            );
+                          }}
+                          className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border text-xs font-semibold transition-all ${
+                            isSelected
+                              ? 'bg-[#EAF0E8] text-[#3B5436] border-[#5B6B56] ring-1 ring-[#5B6B56]'
+                              : 'bg-white text-[#4A443F] border-[#E8E2D6] hover:bg-[#F9F7F2]'
+                          }`}
+                        >
+                          <img
+                            src={c.visualProfile?.photoUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200&q=80'}
+                            alt={c.name}
+                            referrerPolicy="no-referrer"
+                            className="w-5 h-5 rounded-full object-cover shrink-0"
+                          />
+                          <span>{c.name}</span>
+                          {isSelected && <CheckCircle2 className="w-3.5 h-3.5 text-[#5B6B56]" />}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
 
               {/* Art Style Presets */}
               <div>
