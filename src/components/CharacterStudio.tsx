@@ -248,6 +248,9 @@ export const CharacterStudio: React.FC<CharacterStudioProps> = ({
   };
 
   const applyCharacterData = (c: any) => {
+    if (c.pixarPortraitUrl || c.photoUrl) {
+      setPhotoUrl(c.pixarPortraitUrl || c.photoUrl);
+    }
     setName(c.name || 'Mysterious Wanderer');
     setTitleOrRole(c.titleOrRole || 'The Arcane Infiltrator');
     if (c.role) setRole(c.role);
@@ -268,9 +271,40 @@ export const CharacterStudio: React.FC<CharacterStudioProps> = ({
     }
   };
 
+  const handleGeneratePixarPortrait = async () => {
+    setIsAnalyzing(true);
+    setAnalysisError(null);
+    try {
+      const res = await fetch('/api/character/generate-portrait', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: name || 'Story Hero',
+          gender: gender || 'girl',
+          speciesOrArchetype: speciesOrArchetype || 'Explorer',
+          appearanceTags: personalities,
+          artisticStylePrompt: artisticPrompt,
+          keyColors,
+        }),
+      });
+      const data = await res.json();
+      if (data.success && data.imageUrl) {
+        setPhotoUrl(data.imageUrl);
+      } else {
+        throw new Error(data.error || 'Failed to render 4D Pixar portrait');
+      }
+    } catch (err: any) {
+      console.error('Portrait generation error:', err);
+      setAnalysisError(err.message || 'Failed to generate 4D Pixar portrait');
+    } finally {
+      setIsAnalyzing(false);
+    }
+  };
+
   const handleSaveAllDetectedCharacters = () => {
     if (!detectedMultipleChars || detectedMultipleChars.length === 0) return;
     detectedMultipleChars.forEach((c, idx) => {
+      const portrait = c.pixarPortraitUrl || c.photoUrl || photoUrl;
       const newChar: Character = {
         id: `char_${Date.now()}_${idx}_${Math.random().toString(36).substr(2, 5)}`,
         userId: 'default',
@@ -285,8 +319,8 @@ export const CharacterStudio: React.FC<CharacterStudioProps> = ({
         speechPattern: c.speechPattern || 'Speaks clearly with warmth.',
         genreAffinities: genreAffinities.length > 0 ? genreAffinities : ['fantasy'],
         visualProfile: {
-          photoUrl: photoUrl,
-          appearanceTags: Array.isArray(c.personality) ? c.personality : [],
+          photoUrl: portrait,
+          appearanceTags: Array.isArray(c.appearanceTags) ? c.appearanceTags : Array.isArray(c.personality) ? c.personality : [],
           speciesOrArchetype: c.speciesOrArchetype || 'Pixar 3D Persona',
           artisticStylePrompt: c.artisticStylePrompt || `${c.name}, 3D animated character, soft lighting`,
           keyColors: c.keyColors || keyColors,
@@ -501,23 +535,36 @@ export const CharacterStudio: React.FC<CharacterStudioProps> = ({
               )}
 
               {/* Photo Input Buttons (Upload & Camera only) */}
-              <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-2.5">
                 <button
                   type="button"
-                  id="char-capture-camera-btn"
-                  onClick={() => setIsCameraOpen(true)}
+                  id="char-render-pixar-portrait-btn"
+                  onClick={handleGeneratePixarPortrait}
                   disabled={isCompressing || isAnalyzing}
-                  className="flex items-center justify-center gap-2 py-3 px-4 rounded-xl bg-[#F5EFEB] hover:bg-[#EAE5DC] disabled:opacity-50 text-[#4A443F] text-xs font-semibold transition-all border border-[#DFD8CA] hover:border-[#5B6B56]/50 shadow-xs"
+                  className="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-xl bg-gradient-to-r from-[#B45F3C] via-[#9E4D2C] to-[#8C3E1F] hover:from-[#A05333] hover:to-[#7A341A] text-white text-xs font-bold transition-all shadow-sm hover:shadow-md disabled:opacity-50"
                 >
-                  <Camera className="w-4 h-4 text-[#5B6B56]" />
-                  <span>Use Camera</span>
+                  <Wand2 className="w-4 h-4 text-amber-200 animate-pulse" />
+                  <span>Render 4D Pixar 3D Avatar</span>
                 </button>
 
-                <label className="flex items-center justify-center gap-2 py-3 px-4 rounded-xl bg-[#F5EFEB] hover:bg-[#EAE5DC] text-[#4A443F] text-xs font-semibold cursor-pointer transition-all border border-[#DFD8CA] hover:border-[#B45F3C]/50 shadow-xs">
-                  <Upload className="w-4 h-4 text-[#B45F3C]" />
-                  <span>Upload Photo</span>
-                  <input type="file" accept="image/*" onChange={handleFileUpload} disabled={isCompressing || isAnalyzing} className="hidden" />
-                </label>
+                <div className="grid grid-cols-2 gap-3">
+                  <button
+                    type="button"
+                    id="char-capture-camera-btn"
+                    onClick={() => setIsCameraOpen(true)}
+                    disabled={isCompressing || isAnalyzing}
+                    className="flex items-center justify-center gap-2 py-3 px-4 rounded-xl bg-[#F5EFEB] hover:bg-[#EAE5DC] disabled:opacity-50 text-[#4A443F] text-xs font-semibold transition-all border border-[#DFD8CA] hover:border-[#5B6B56]/50 shadow-xs"
+                  >
+                    <Camera className="w-4 h-4 text-[#5B6B56]" />
+                    <span>Use Camera</span>
+                  </button>
+
+                  <label className="flex items-center justify-center gap-2 py-3 px-4 rounded-xl bg-[#F5EFEB] hover:bg-[#EAE5DC] text-[#4A443F] text-xs font-semibold cursor-pointer transition-all border border-[#DFD8CA] hover:border-[#B45F3C]/50 shadow-xs">
+                    <Upload className="w-4 h-4 text-[#B45F3C]" />
+                    <span>Upload Photo</span>
+                    <input type="file" accept="image/*" onChange={handleFileUpload} disabled={isCompressing || isAnalyzing} className="hidden" />
+                  </label>
+                </div>
               </div>
 
               {/* Preset Portait Pickers */}
