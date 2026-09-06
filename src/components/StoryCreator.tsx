@@ -226,13 +226,23 @@ export const StoryCreator: React.FC<StoryCreatorProps> = ({
         setSynopsis(chosen.synopsis);
       } else {
         const leadName = selectedCast[0]?.name || 'Milo';
-        setTitle(`The Water-Wheel Riddle of Greenhaven`);
-        setSynopsis(`When a clogged pressure valve halts the valley hydroponic farm, ${leadName} must decipher an intricate gear puzzle and build a bamboo siphon before dusk.`);
+        if (isKidsMode || targetAudience === '5-7' || targetAudience === '2-4') {
+          setTitle(`The Great Berry Basket Hunt`);
+          setSynopsis(`When ${leadName} picks sweet blue berries, a friendly squirrel gently borrows the basket. ${leadName} follows tiny paw prints through the sunny garden to share a yummy snack.`);
+        } else {
+          setTitle(`The Water-Wheel Riddle of Greenhaven`);
+          setSynopsis(`When a clogged pressure valve halts the valley hydroponic farm, ${leadName} must decipher an intricate gear puzzle and build a bamboo siphon before dusk.`);
+        }
       }
     } catch (err) {
       const leadName = selectedCast[0]?.name || 'Milo';
-      setTitle(`The Water-Wheel Riddle of Greenhaven`);
-      setSynopsis(`When a clogged pressure valve halts the valley hydroponic farm, ${leadName} must decipher an intricate gear puzzle and build a bamboo siphon before dusk.`);
+      if (isKidsMode || targetAudience === '5-7' || targetAudience === '2-4') {
+        setTitle(`The Great Berry Basket Hunt`);
+        setSynopsis(`When ${leadName} picks sweet blue berries, a friendly squirrel gently borrows the basket. ${leadName} follows tiny paw prints through the sunny garden to share a yummy snack.`);
+      } else {
+        setTitle(`The Water-Wheel Riddle of Greenhaven`);
+        setSynopsis(`When a clogged pressure valve halts the valley hydroponic farm, ${leadName} must decipher an intricate gear puzzle and build a bamboo siphon before dusk.`);
+      }
     } finally {
       setIsSparkingPremises(false);
     }
@@ -273,8 +283,10 @@ export const StoryCreator: React.FC<StoryCreatorProps> = ({
       effectiveCast = [autoHero];
     }
 
-    const finalTitle = title.trim() || `The Chronicle of ${effectiveCast[0]?.name || 'Wonder'}`;
-    const finalSynopsis = synopsis.trim() || `${GENRE_PRESETS.find((g) => g.id === selectedGenre)?.samplePromptSeed}`;
+    const finalTitle = title.trim() || (isKidsMode || targetAudience === '5-7' || targetAudience === '2-4' ? `The Happy Day of ${effectiveCast[0]?.name || 'Milo'}` : `The Chronicle of ${effectiveCast[0]?.name || 'Wonder'}`);
+    const finalSynopsis = synopsis.trim() || (isKidsMode || targetAudience === '5-7' || targetAudience === '2-4'
+      ? `A sweet and joyful adventure where ${effectiveCast[0]?.name || 'Milo'} helps friends and discovers happy surprises.`
+      : `${GENRE_PRESETS.find((g) => g.id === selectedGenre)?.samplePromptSeed || 'A wondrous journey across the frontier of discovery.'}`);
 
     setIsGenerating(true);
     setErrorMsg(null);
